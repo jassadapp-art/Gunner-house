@@ -162,15 +162,18 @@ export function App() {
     saveStoredExpenses(expenses);
   }, [expenses]);
 
+  const currentDataRef = useRef({ settings, goals, transactions, expenses });
+  useEffect(() => {
+    currentDataRef.current = { settings, goals, transactions, expenses };
+  }, [settings, goals, transactions, expenses]);
+
   // 1. Cloud Sync on Mount & Realtime Subscription
   useEffect(() => {
     const config = getSupabaseConfig();
     if (!config.isConfigured) {
-      setCloudStatus('offline');
       return;
     }
 
-    setCloudStatus('syncing');
     let isMounted = true;
 
     // Fetch initial state from Supabase
@@ -189,12 +192,7 @@ export function App() {
           }, 400);
         } else {
           // Table has no record yet -> initialize with local state
-          pushCloudHouseholdData({
-            settings,
-            goals,
-            transactions,
-            expenses,
-          }).then(ok => {
+          pushCloudHouseholdData(currentDataRef.current).then(ok => {
             if (isMounted) setCloudStatus(ok ? 'connected' : 'error');
           });
         }

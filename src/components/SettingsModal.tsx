@@ -258,7 +258,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
           alert('ไฟล์ข้อมูลไม่ถูกต้องตามโครงสร้าง');
         }
-      } catch (err) {
+      } catch {
         alert('เกิดข้อผิดพลาดในการอ่านไฟล์ JSON');
       }
     };

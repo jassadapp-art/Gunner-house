@@ -142,7 +142,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
   }, [transactions]);
 
   // Custom Tooltip for Stacked Bar Chart
-  const CustomBarTooltip = ({ active, payload, label }: any) => {
+  const renderCustomBarTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const valJoint = payload.find((p: any) => p.dataKey === 'joint')?.value || 0;
       const valA = payload.find((p: any) => p.dataKey === 'person_a')?.value || 0;
@@ -191,7 +191,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
   };
 
   // Custom Tooltip for Cumulative Growth Chart
-  const CustomCumulativeTooltip = ({ active, payload, label }: any) => {
+  const renderCustomCumulativeTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const cumTotal = payload.find((p: any) => p.dataKey === 'cumTotal')?.value || 0;
       const cumA = payload.find((p: any) => p.dataKey === 'cumA')?.value || 0;
@@ -347,7 +347,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     axisLine={false}
                     tickFormatter={(val) => `฿${(val / 1000).toFixed(0)}k`}
                   />
-                  <Tooltip content={<CustomBarTooltip />} />
+                  <Tooltip content={renderCustomBarTooltip} />
                   <Bar dataKey="joint" name="รวมกัน (กองกลาง)" stackId="savings" fill="#0D9488" radius={[0, 0, 0, 0]} />
                   <Bar dataKey="person_a" name={memberA.nickname} stackId="savings" fill={memberA.color} radius={[0, 0, 0, 0]} />
                   <Bar dataKey="person_b" name={memberB.nickname} stackId="savings" fill={memberB.color} radius={[6, 6, 0, 0]} />
@@ -379,7 +379,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     axisLine={false}
                     tickFormatter={(val) => `฿${(val / 1000).toFixed(0)}k`}
                   />
-                  <Tooltip content={<CustomCumulativeTooltip />} />
+                  <Tooltip content={renderCustomCumulativeTooltip} />
                   <Area
                     type="monotone"
                     dataKey="cumTotal"
