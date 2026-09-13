@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import type { ContributorId, HouseholdFundType, HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction, TransactionType } from './types';
 import {
@@ -13,6 +13,12 @@ import {
   resetAllData,
 } from './utils/storage';
 import { formatCurrency, getTodayDateString } from './utils/formatters';
+import {
+  getSupabaseConfig,
+  fetchCloudHouseholdData,
+  pushCloudHouseholdData,
+  subscribeToCloudChanges,
+} from './services/supabaseSync';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -83,6 +89,12 @@ export function App() {
   const [editingExpense, setEditingExpense] = useState<MonthlyExpense | null>(null);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'security' | 'categories' | 'cloud' | 'data'>('profile');
+  const [cloudStatus, setCloudStatus] = useState<'connected' | 'syncing' | 'offline' | 'error'>(() => {
+    const cfg = getSupabaseConfig();
+    return cfg.isConfigured ? 'syncing' : 'offline';
+  });
+  const isRemoteUpdatingRef = useRef(false);
 
   // Live Fund Balances
   const currentLongTermBalance = useMemo(() => {
@@ -149,6 +161,103 @@ export function App() {
   useEffect(() => {
     saveStoredExpenses(expenses);
   }, [expenses]);
+
+  // 1. Cloud Sync on Mount & Realtime Subscription
+  useEffect(() => {
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) {
+      setCloudStatus('offline');
+      return;
+    }
+
+    setCloudStatus('syncing');
+    let isMounted = true;
+
+    // Fetch initial state from Supabase
+    fetchCloudHouseholdData()
+      .then(cloudData => {
+        if (!isMounted) return;
+        if (cloudData) {
+          isRemoteUpdatingRef.current = true;
+          setSettings(cloudData.settings);
+          setGoals(cloudData.goals);
+          setTransactions(cloudData.transactions);
+          if (cloudData.expenses) setExpenses(cloudData.expenses);
+          setCloudStatus('connected');
+          setTimeout(() => {
+            isRemoteUpdatingRef.current = false;
+          }, 400);
+        } else {
+          // Table has no record yet -> initialize with local state
+          pushCloudHouseholdData({
+            settings,
+            goals,
+            transactions,
+            expenses,
+          }).then(ok => {
+            if (isMounted) setCloudStatus(ok ? 'connected' : 'error');
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Initial cloud fetch error:', err);
+        if (isMounted) setCloudStatus('error');
+      });
+
+    // Subscribe to Realtime postgres changes
+    const unsubscribe = subscribeToCloudChanges(newData => {
+      if (!isMounted) return;
+      isRemoteUpdatingRef.current = true;
+      setSettings(newData.settings);
+      setGoals(newData.goals);
+      setTransactions(newData.transactions);
+      if (newData.expenses) setExpenses(newData.expenses);
+      setCloudStatus('connected');
+      showToast('🔄 ข้อมูลอัปเดตตรงกับอีกอุปกรณ์แล้ว');
+      setTimeout(() => {
+        isRemoteUpdatingRef.current = false;
+      }, 500);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // 2. Debounced push to Cloud on local mutations
+  useEffect(() => {
+    if (isRemoteUpdatingRef.current) return;
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) return;
+
+    const timer = setTimeout(async () => {
+      setCloudStatus('syncing');
+      const ok = await pushCloudHouseholdData({
+        settings,
+        goals,
+        transactions,
+        expenses,
+      });
+      setCloudStatus(ok ? 'connected' : 'error');
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [settings, goals, transactions, expenses]);
+
+  // 3. Manual Sync Handler
+  const handleTriggerCloudSync = async () => {
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) return;
+    setCloudStatus('syncing');
+    const ok = await pushCloudHouseholdData({
+      settings,
+      goals,
+      transactions,
+      expenses,
+    });
+    setCloudStatus(ok ? 'connected' : 'error');
+  };
 
   // Trigger celebratory confetti
   const triggerCelebration = () => {
@@ -499,7 +608,15 @@ export function App() {
           setEditingExpense(null);
           setIsExpenseModalOpen(true);
         }}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenSettingsModal={() => {
+          setSettingsTab('profile');
+          setIsSettingsModalOpen(true);
+        }}
+        onOpenCloudModal={() => {
+          setSettingsTab('cloud');
+          setIsSettingsModalOpen(true);
+        }}
+        cloudStatus={cloudStatus}
         onResetData={handleResetData}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}
@@ -664,6 +781,13 @@ export function App() {
         onSaveSettings={setSettings}
         onImportData={handleImportData}
         onResetData={handleResetData}
+        initialTab={settingsTab}
+        cloudStatus={cloudStatus}
+        onTriggerCloudSync={handleTriggerCloudSync}
+        onConfigSaved={() => {
+          const cfg = getSupabaseConfig();
+          setCloudStatus(cfg.isConfigured ? 'connected' : 'offline');
+        }}
       />
 
     </div>

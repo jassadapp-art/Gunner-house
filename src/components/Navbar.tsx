@@ -1,6 +1,6 @@
 import React from 'react';
 import type { HouseholdSettings } from '../types';
-import { PlusCircle, Settings, Target, PiggyBank, RefreshCw, Receipt, Sun, Moon, Lock } from 'lucide-react';
+import { PlusCircle, Settings, Target, PiggyBank, RefreshCw, Receipt, Sun, Moon, Lock, Cloud } from 'lucide-react';
 
 interface NavbarProps {
   settings: HouseholdSettings;
@@ -11,6 +11,8 @@ interface NavbarProps {
   onResetData: () => void;
   onToggleTheme: () => void;
   onLockScreen?: () => void;
+  cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
+  onOpenCloudModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -22,6 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetData,
   onToggleTheme,
   onLockScreen,
+  cloudStatus = 'offline',
+  onOpenCloudModal,
 }) => {
   const memberA = settings.members.person_a;
   const memberB = settings.members.person_b;
@@ -120,6 +124,49 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Target className="w-4 h-4 text-teal-600 dark:text-cyan-400" />
               <span className="hidden sm:inline">เพิ่มเป้าหมาย</span>
+            </button>
+
+            {/* Cloud Sync Status Badge Button */}
+            <button
+              onClick={onOpenCloudModal || onOpenSettingsModal}
+              title={
+                cloudStatus === 'connected'
+                  ? '🟢 Cloud ซิงค์สดเชื่อมต่อแล้ว (คลิกเพื่อดูการตั้งค่า)'
+                  : cloudStatus === 'syncing'
+                  ? '🟡 กำลังรับส่งข้อมูลกับ Cloud...'
+                  : cloudStatus === 'error'
+                  ? '🔴 การเชื่อมต่อ Cloud ขัดข้อง (คลิกเพื่อตรวจสอบ)'
+                  : '⚪ ตั้งค่าเชื่อมต่อฐานข้อมูล Cloud (มือถือ ↔ คอม)'
+              }
+              className={`p-2 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 shadow-xs ${
+                cloudStatus === 'connected'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30 hover:bg-emerald-100'
+                  : cloudStatus === 'syncing'
+                  ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500/30'
+                  : cloudStatus === 'error'
+                  ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-500/30'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Cloud className={`w-4 h-4 ${cloudStatus === 'syncing' ? 'animate-bounce text-amber-500' : ''}`} />
+              <span className="hidden sm:inline">
+                {cloudStatus === 'connected'
+                  ? 'Cloud สด'
+                  : cloudStatus === 'syncing'
+                  ? 'กำลังซิงค์'
+                  : cloudStatus === 'error'
+                  ? 'Cloud Error'
+                  : 'ซิงค์มือถือ'}
+              </span>
+              <span className={`w-2 h-2 rounded-full ${
+                cloudStatus === 'connected'
+                  ? 'bg-emerald-500 animate-pulse'
+                  : cloudStatus === 'syncing'
+                  ? 'bg-amber-500 animate-spin'
+                  : cloudStatus === 'error'
+                  ? 'bg-rose-500'
+                  : 'bg-slate-400'
+              }`}></span>
             </button>
 
             {/* Settings Modal Button */}
