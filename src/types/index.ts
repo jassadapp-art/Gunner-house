@@ -59,6 +59,7 @@ export interface MonthlyExpense {
   color?: string;
   note?: string;
   isPaidThisMonth?: boolean;
+  lastPaidMonth?: string; // Year-Month when this expense was marked as paid, e.g. '2026-09'
 }
 
 export interface HouseholdSettings {

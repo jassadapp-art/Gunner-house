@@ -1,15 +1,15 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v7';
-const GOALS_KEY = 'household_savings_goals_v7';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v7';
-const EXPENSES_KEY = 'household_savings_expenses_v7';
+const SETTINGS_KEY = 'household_savings_settings_v8';
+const GOALS_KEY = 'household_savings_goals_v8';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v8';
+const EXPENSES_KEY = 'household_savings_expenses_v8';
 
 // Ensure browser automatically loads the updated dataset
 (() => {
   try {
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].forEach(ver => {
+    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'].forEach(ver => {
       localStorage.removeItem(`household_savings_settings_${ver}`);
       localStorage.removeItem(`household_savings_goals_${ver}`);
       localStorage.removeItem(`household_savings_transactions_${ver}`);

@@ -32,8 +32,8 @@ export const QuickAddBar: React.FC<QuickAddBarProps> = ({
 
   // Active Mode: 'deposit' vs 'withdraw'
   const [activeMode, setActiveMode] = useState<'deposit' | 'withdraw'>('deposit');
-  // Selected Fund: 'long_term' vs 'operating'
-  const [selectedFund, setSelectedFund] = useState<HouseholdFundType>('long_term');
+  // Selected Fund: 'operating' (default) vs 'long_term'
+  const [selectedFund, setSelectedFund] = useState<HouseholdFundType>('operating');
   const [withdrawalReason, setWithdrawalReason] = useState<string>('ซ่อมรถ/ค่ายานพาหนะ');
 
   // Customizable Quick Add Amount
@@ -120,22 +120,8 @@ export const QuickAddBar: React.FC<QuickAddBarProps> = ({
         {/* Controls: Fund Selector + Mode Switcher + Preset Button */}
         <div className="flex flex-wrap items-center gap-2">
           
-          {/* Fund Selector: Long-term vs Operating */}
+          {/* Fund Selector: Operating vs Long-term */}
           <div className="inline-flex bg-slate-100 dark:bg-slate-950/80 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setSelectedFund('long_term')}
-              className={`px-2.5 py-1 rounded-lg transition font-bold flex items-center gap-1.5 ${
-                selectedFund === 'long_term'
-                  ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-xs ring-1 ring-emerald-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="กองที่ 1: กองกลางสะสมทั้งหมด (ทุนระยะยาว)"
-            >
-              <Wallet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>🏛️ กองระยะยาว</span>
-            </button>
-
             <button
               type="button"
               onClick={() => setSelectedFund('operating')}
@@ -144,10 +130,24 @@ export const QuickAddBar: React.FC<QuickAddBarProps> = ({
                   ? 'bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-indigo-500/30'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
-              title="กองที่ 2: กองทุนใช้จ่ายรายเดือน (ทุนหมุนเวียน)"
+              title="กองหมุนเวียน: กองทุนใช้จ่ายรายเดือน (เข้ากองนี้เป็นหลัก)"
             >
               <Receipt className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>💳 กองหมุนเวียน</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedFund('long_term')}
+              className={`px-2.5 py-1 rounded-lg transition font-bold flex items-center gap-1.5 ${
+                selectedFund === 'long_term'
+                  ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-xs ring-1 ring-emerald-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="กองระยะยาว: กองกลางสะสมทั้งหมด (ทุนระยะยาว/ฉุกเฉิน)"
+            >
+              <Wallet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>🏛️ กองระยะยาว</span>
             </button>
           </div>
 
