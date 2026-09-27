@@ -121,6 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncingManual, setIsSyncingManual] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
+  const [copiedMobileLink, setCopiedMobileLink] = useState(false);
 
   const [isPasswordProtected, setIsPasswordProtected] = useState(settings.isPasswordProtected !== false);
   const [password, setPassword] = useState(settings.password || '1234');
@@ -740,6 +741,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Auto Realtime Status Notice */}
+              <div className="p-4 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5 shadow-2xs">
+                <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                  <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <div className="font-bold text-xs">
+                    📲 ระบบ Realtime อัตโนมัติทุกอุปกรณ์ (ไม่ต้องตั้งค่าในมือถือ)
+                  </div>
+                </div>
+                <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300 leading-relaxed">
+                  ระบบฝังการเชื่อมต่อ Supabase ไว้ในตัวเว็บเรียบร้อยแล้ว ทุกคนที่เปิดเว็บลิงก์ปกติจากคอมพิวเตอร์หรือโทรศัพท์มือถือ จะเห็นข้อมูลและอัปเดตตรงกันทันที 100%
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      navigator.clipboard.writeText(window.location.origin + window.location.pathname);
+                      setCopiedMobileLink(true);
+                      setTimeout(() => setCopiedMobileLink(false), 3000);
+                    }
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                >
+                  {copiedMobileLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedMobileLink ? 'คัดลอกลิงก์เว็บแล้ว! ส่งเข้า LINE ได้เลย' : 'คัดลอกลิงก์เว็บไซต์ส่งเข้า LINE'}</span>
+                </button>
+              </div>
+
               {/* Notification Message */}
               {cloudMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in">
@@ -857,12 +885,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </form>
 
               {/* SQL Script Card */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-2">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      คำสั่ง SQL สร้างตารางใน Supabase (ทำครั้งเดียว)
+                      คำสั่ง SQL สร้างตารางใน Supabase (รันเพียงครั้งเดียว)
                     </span>
                   </div>
                   <button
@@ -875,25 +903,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  นำคำสั่งนี้ไปวางในเมนู <strong>SQL Editor</strong> บน Supabase แล้วกดปุ่ม <strong>Run</strong> ระบบจะสร้างตารางและเปิดใช้งาน Realtime ให้ทันที
+                  ไปที่ <strong>supabase.com/dashboard</strong> ➡️ เลือกโปรเจกต์ของคุณ ➡️ แถบซ้ายมือ <strong>SQL Editor</strong> ➡️ กด <strong>New query</strong> ➡️ วางข้อความด้านล่างนี้แล้วกดปุ่มเขียว <strong>Run</strong>
                 </p>
-              </div>
-
-              {/* Render Environment Setup Tip */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200">
-                <p className="font-bold mb-1 flex items-center gap-1.5">
-                  <span>💡 เคล็ดลับให้คอมและมือถือลิ้งค์กันอัตโนมัติ:</span>
-                </p>
-                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
-                  ไปที่ <strong>Render Dashboard</strong> ➡️ คลิกที่เว็บไซต์ของคุณ ➡️ ไปที่แท็บ <strong>Environment</strong> ➡️ เพิ่ม 2 ตัวแปรนี้:
-                </p>
-                <div className="mt-2 space-y-1 font-mono text-[10px] bg-white dark:bg-slate-900 p-2 rounded-lg border border-amber-200 dark:border-amber-900">
-                  <div><strong>VITE_SUPABASE_URL</strong> = <em>(Project URL ของคุณ)</em></div>
-                  <div><strong>VITE_SUPABASE_ANON_KEY</strong> = <em>(Anon Key ของคุณ)</em></div>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
-                  เมื่อเพิ่มใน Render แล้ว ทุกอุปกรณ์ที่เปิดเว็บ (ทั้งคอมและโทรศัพท์ของเมย์/เจ) จะเชื่อมต่อเข้าหากันทันที 100% โดยไม่ต้องพิมพ์รหัสในโทรศัพท์เลยครับ!
-                </p>
+                <pre className="p-3 rounded-xl bg-slate-900 text-slate-100 text-[11px] font-mono overflow-x-auto max-h-40 border border-slate-700/60 leading-relaxed select-all">
+                  {SUPABASE_SQL_SETUP}
+                </pre>
               </div>
             </div>
           ) : (
