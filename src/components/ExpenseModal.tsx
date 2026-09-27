@@ -143,6 +143,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       color,
       note: note.trim() || undefined,
       isPaidThisMonth: editingExpense?.isPaidThisMonth ?? false,
+      lastPaidMonth: editingExpense?.lastPaidMonth,
     };
 
     onSave(savedExpense);

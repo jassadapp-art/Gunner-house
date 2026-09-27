@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import type { ContributorId, HouseholdFundType, HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction, TransactionType } from './types';
 import {
@@ -12,7 +12,14 @@ import {
   saveStoredExpenses,
   resetAllData,
 } from './utils/storage';
-import { formatCurrency, getTodayDateString } from './utils/formatters';
+import { formatCurrency, getTodayDateString, getCurrentYearMonth } from './utils/formatters';
+import { checkAndAutoResetMonthlyExpenses, forceResetToNewMonth } from './utils/expenseHelpers';
+import {
+  getSupabaseConfig,
+  fetchCloudHouseholdData,
+  pushCloudHouseholdData,
+  subscribeToCloudChanges,
+} from './services/supabaseSync';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -34,7 +41,11 @@ export function App() {
   const [settings, setSettings] = useState<HouseholdSettings>(loadStoredSettings);
   const [goals, setGoals] = useState<SavingsGoal[]>(loadStoredGoals);
   const [transactions, setTransactions] = useState<Transaction[]>(loadStoredTransactions);
-  const [expenses, setExpenses] = useState<MonthlyExpense[]>(loadStoredExpenses);
+  const [expenses, setExpenses] = useState<MonthlyExpense[]>(() => {
+    const loaded = loadStoredExpenses();
+    const { updatedExpenses } = checkAndAutoResetMonthlyExpenses(loaded);
+    return updatedExpenses;
+  });
 
   // Lock Screen state
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
@@ -73,7 +84,7 @@ export function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [initialContributor, setInitialContributor] = useState<ContributorId>('person_a');
   const [initialGoalId, setInitialGoalId] = useState<string | undefined>(undefined);
-  const [initialFund, setInitialFund] = useState<HouseholdFundType>('long_term');
+  const [initialFund, setInitialFund] = useState<HouseholdFundType>('operating');
   const [initialType, setInitialType] = useState<TransactionType>('goal_allocation');
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -83,6 +94,12 @@ export function App() {
   const [editingExpense, setEditingExpense] = useState<MonthlyExpense | null>(null);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'security' | 'categories' | 'cloud' | 'data'>('profile');
+  const [cloudStatus, setCloudStatus] = useState<'connected' | 'syncing' | 'offline' | 'error'>(() => {
+    const cfg = getSupabaseConfig();
+    return cfg.isConfigured ? 'syncing' : 'offline';
+  });
+  const isRemoteUpdatingRef = useRef(false);
 
   // Live Fund Balances
   const currentLongTermBalance = useMemo(() => {
@@ -149,6 +166,101 @@ export function App() {
   useEffect(() => {
     saveStoredExpenses(expenses);
   }, [expenses]);
+
+  const currentDataRef = useRef({ settings, goals, transactions, expenses });
+  useEffect(() => {
+    currentDataRef.current = { settings, goals, transactions, expenses };
+  }, [settings, goals, transactions, expenses]);
+
+  // 1. Cloud Sync on Mount & Realtime Subscription
+  useEffect(() => {
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) {
+      return;
+    }
+
+    let isMounted = true;
+
+    // Fetch initial state from Supabase
+    fetchCloudHouseholdData()
+      .then(cloudData => {
+        if (!isMounted) return;
+        if (cloudData) {
+          isRemoteUpdatingRef.current = true;
+          setSettings(cloudData.settings);
+          setGoals(cloudData.goals);
+          setTransactions(cloudData.transactions);
+          if (cloudData.expenses) setExpenses(cloudData.expenses);
+          setCloudStatus('connected');
+          setTimeout(() => {
+            isRemoteUpdatingRef.current = false;
+          }, 400);
+        } else {
+          // Table has no record yet -> initialize with local state
+          pushCloudHouseholdData(currentDataRef.current).then(ok => {
+            if (isMounted) setCloudStatus(ok ? 'connected' : 'error');
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Initial cloud fetch error:', err);
+        if (isMounted) setCloudStatus('error');
+      });
+
+    // Subscribe to Realtime postgres changes
+    const unsubscribe = subscribeToCloudChanges(newData => {
+      if (!isMounted) return;
+      isRemoteUpdatingRef.current = true;
+      setSettings(newData.settings);
+      setGoals(newData.goals);
+      setTransactions(newData.transactions);
+      if (newData.expenses) setExpenses(newData.expenses);
+      setCloudStatus('connected');
+      showToast('🔄 ข้อมูลอัปเดตตรงกับอีกอุปกรณ์แล้ว');
+      setTimeout(() => {
+        isRemoteUpdatingRef.current = false;
+      }, 500);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // 2. Debounced push to Cloud on local mutations
+  useEffect(() => {
+    if (isRemoteUpdatingRef.current) return;
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) return;
+
+    const timer = setTimeout(async () => {
+      setCloudStatus('syncing');
+      const ok = await pushCloudHouseholdData({
+        settings,
+        goals,
+        transactions,
+        expenses,
+      });
+      setCloudStatus(ok ? 'connected' : 'error');
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [settings, goals, transactions, expenses]);
+
+  // 3. Manual Sync Handler
+  const handleTriggerCloudSync = async () => {
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) return;
+    setCloudStatus('syncing');
+    const ok = await pushCloudHouseholdData({
+      settings,
+      goals,
+      transactions,
+      expenses,
+    });
+    setCloudStatus(ok ? 'connected' : 'error');
+  };
 
   // Trigger celebratory confetti
   const triggerCelebration = () => {
@@ -235,7 +347,7 @@ export function App() {
     contributorId: ContributorId,
     amount: number,
     note: string,
-    targetFund: HouseholdFundType = 'long_term'
+    targetFund: HouseholdFundType = 'operating'
   ) => {
     const memberName = getContributorDisplayName(contributorId);
     const defaultGoal = goals.length > 0 ? goals[0] : undefined;
@@ -264,7 +376,7 @@ export function App() {
     contributorId: ContributorId,
     amount: number,
     reason: string,
-    targetFund: HouseholdFundType = 'long_term'
+    targetFund: HouseholdFundType = 'operating'
   ) => {
     const memberName = getContributorDisplayName(contributorId);
     const fundName = targetFund === 'operating' ? 'กองหมุนเวียน' : 'กองระยะยาว';
@@ -330,8 +442,30 @@ export function App() {
     showToast('ลบรายการค่าใช้จ่ายเรียบร้อย');
   };
 
+  // Periodic background check: auto-reset expenses if today has reached/passed their due date in a new month cycle
+  useEffect(() => {
+    const runCheck = () => {
+      setExpenses(prev => {
+        const { updatedExpenses, resetCount, hasChanges } = checkAndAutoResetMonthlyExpenses(prev);
+        if (hasChanges) {
+          showToast(`📅 ถึงวันกำหนดชำระแล้ว ระบบรีเซ็ตสถานะเป็นรอบเดือนใหม่ ${resetCount} รายการ`);
+          return updatedExpenses;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('focus', runCheck);
+    const interval = setInterval(runCheck, 60000 * 30);
+    return () => {
+      window.removeEventListener('focus', runCheck);
+      clearInterval(interval);
+    };
+  }, []);
+
   // 8. Toggle Expense Paid
   const handleToggleExpensePaid = (expenseId: string) => {
+    const currentMonthKey = getCurrentYearMonth();
     setExpenses(prev =>
       prev.map(e => {
         if (e.id === expenseId) {
@@ -341,7 +475,11 @@ export function App() {
               ? `ทำเครื่องหมาย "${e.title}" ว่าชำระแล้วในรอบเดือนนี้ ✅`
               : `ทำเครื่องหมาย "${e.title}" ว่ายังไม่ชำระ ⏳`
           );
-          return { ...e, isPaidThisMonth: nextState };
+          return {
+            ...e,
+            isPaidThisMonth: nextState,
+            lastPaidMonth: nextState ? currentMonthKey : undefined,
+          };
         }
         return e;
       })
@@ -350,11 +488,10 @@ export function App() {
 
   // 8.1 Update Expense Bill (for variable recurring expenses e.g. electricity, water)
   const handleUpdateExpenseBill = (expenseId: string, actualAmount: number, markAsPaid?: boolean) => {
+    const currentMonthKey = getCurrentYearMonth();
     setExpenses(prev =>
       prev.map(e => {
         if (e.id === expenseId) {
-          const now = new Date();
-          const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
           const updatedBills = {
             ...(e.monthlyBills || {}),
             [currentMonthKey]: actualAmount,
@@ -372,11 +509,18 @@ export function App() {
             currentMonthAmount: actualAmount,
             monthlyBills: updatedBills,
             isPaidThisMonth: nextPaidState,
+            lastPaidMonth: nextPaidState ? currentMonthKey : e.lastPaidMonth,
           };
         }
         return e;
       })
     );
+  };
+
+  // 8.2 Force reset/clear all expenses for a new monthly cycle
+  const handleForceResetMonthlyExpenses = () => {
+    setExpenses(prev => forceResetToNewMonth(prev));
+    showToast('🔄 เคลียร์สถานะค่าใช้จ่ายทั้งหมดเป็นรอบเดือนใหม่เรียบร้อยแล้ว');
   };
 
   // 9. Add dynamic custom category
@@ -489,6 +633,7 @@ export function App() {
           setEditingTransaction(null);
           setInitialContributor('person_a');
           setInitialGoalId(undefined);
+          setInitialFund('operating');
           setIsAddModalOpen(true);
         }}
         onOpenGoalModal={() => {
@@ -499,7 +644,15 @@ export function App() {
           setEditingExpense(null);
           setIsExpenseModalOpen(true);
         }}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenSettingsModal={() => {
+          setSettingsTab('profile');
+          setIsSettingsModalOpen(true);
+        }}
+        onOpenCloudModal={() => {
+          setSettingsTab('cloud');
+          setIsSettingsModalOpen(true);
+        }}
+        cloudStatus={cloudStatus}
         onResetData={handleResetData}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}
@@ -518,7 +671,7 @@ export function App() {
             setInitialType('deposit');
             setInitialContributor(contributorId || 'person_a');
             setInitialGoalId(undefined);
-            setInitialFund(fund || 'long_term');
+            setInitialFund(fund || 'operating');
             setIsAddModalOpen(true);
           }}
           onUpdatePresets={handleUpdatePresets}
@@ -549,6 +702,7 @@ export function App() {
           onDeleteExpense={handleDeleteExpense}
           onToggleExpensePaid={handleToggleExpensePaid}
           onUpdateExpenseBill={handleUpdateExpenseBill}
+          onForceResetNewMonth={handleForceResetMonthlyExpenses}
         />
 
         {/* 4. Shared Goals & Milestones */}
@@ -664,6 +818,13 @@ export function App() {
         onSaveSettings={setSettings}
         onImportData={handleImportData}
         onResetData={handleResetData}
+        initialTab={settingsTab}
+        cloudStatus={cloudStatus}
+        onTriggerCloudSync={handleTriggerCloudSync}
+        onConfigSaved={() => {
+          const cfg = getSupabaseConfig();
+          setCloudStatus(cfg.isConfigured ? 'connected' : 'offline');
+        }}
       />
 
     </div>

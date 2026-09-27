@@ -67,7 +67,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const memberB = settings.members.person_b;
 
   const [type, setType] = useState<TransactionType>('deposit');
-  const [targetFund, setTargetFund] = useState<HouseholdFundType>('long_term');
+  const [targetFund, setTargetFund] = useState<HouseholdFundType>('operating');
   const [contributorId, setContributorId] = useState<ContributorId>('joint');
   const [date, setDate] = useState(getTodayDateString());
   const [amount, setAmount] = useState<string>('');
@@ -80,7 +80,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   useEffect(() => {
     if (editingTransaction) {
       setType(editingTransaction.type || 'deposit');
-      setTargetFund(editingTransaction.targetFund || 'long_term');
+      setTargetFund(editingTransaction.targetFund || 'operating');
       setContributorId(editingTransaction.contributorId);
       setDate(editingTransaction.date);
       setAmount(editingTransaction.amount.toString());
@@ -91,7 +91,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     } else {
       const defaultType = initialType || (initialGoalId ? 'goal_allocation' : 'deposit');
       setType(defaultType);
-      setTargetFund(initialFund || 'long_term');
+      setTargetFund(initialFund || 'operating');
       setContributorId(initialContributor || 'joint');
       setDate(getTodayDateString());
       setAmount('');
@@ -289,7 +289,34 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 : 'เลือกกองทุนที่ต้องการถอนออก *'}
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Fund 1: Long-term */}
+              {/* Fund 1: Operating (Default) */}
+              <button
+                type="button"
+                onClick={() => setTargetFund('operating')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                  targetFund === 'operating'
+                    ? 'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-500 ring-2 ring-indigo-500/30 shadow-md'
+                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                    <span>💳 กองหมุนเวียน</span>
+                    {targetFund === 'operating' && (
+                      <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ml-auto" />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-indigo-700 dark:text-indigo-400 font-medium">กองทุนใช้จ่ายรายเดือน (หลัก)</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    คงเหลือ: <strong className="text-indigo-700 dark:text-indigo-300">{formatCurrency(operatingBalance)}</strong>
+                  </div>
+                </div>
+              </button>
+
+              {/* Fund 2: Long-term */}
               <button
                 type="button"
                 onClick={() => setTargetFund('long_term')}
@@ -312,33 +339,6 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">กองกลางสะสมทั้งหมด</div>
                   <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                     คงเหลือ: <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(longTermBalance)}</strong>
-                  </div>
-                </div>
-              </button>
-
-              {/* Fund 2: Operating */}
-              <button
-                type="button"
-                onClick={() => setTargetFund('operating')}
-                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
-                  targetFund === 'operating'
-                    ? 'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-500 ring-2 ring-indigo-500/30 shadow-md'
-                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Receipt className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    <span>💳 กองหมุนเวียน</span>
-                    {targetFund === 'operating' && (
-                      <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ml-auto" />
-                    )}
-                  </div>
-                  <div className="text-[11px] text-indigo-700 dark:text-indigo-400 font-medium">กองทุนใช้จ่ายรายเดือน</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    คงเหลือ: <strong className="text-indigo-700 dark:text-indigo-300">{formatCurrency(operatingBalance)}</strong>
                   </div>
                 </div>
               </button>

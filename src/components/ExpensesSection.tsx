@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { HouseholdSettings, MonthlyExpense } from '../types';
-import { formatCurrency, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatPercent, getMonthLabel, getCurrentYearMonth } from '../utils/formatters';
 import {
   PieChart,
   Pie,
@@ -32,6 +32,7 @@ import {
   Lock,
   Zap,
   X,
+  RotateCcw,
 } from 'lucide-react';
 
 const getEffectiveExpenseAmount = (e: MonthlyExpense): number => {
@@ -48,6 +49,7 @@ interface ExpensesSectionProps {
   onDeleteExpense: (id: string) => void;
   onToggleExpensePaid: (id: string) => void;
   onUpdateExpenseBill?: (expenseId: string, actualAmount: number, markAsPaid?: boolean) => void;
+  onForceResetNewMonth?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -68,6 +70,42 @@ const PALETTE = [
   '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#14B8A6'
 ];
 
+// Real historical trend datasets from Je & May's financial spreadsheet (2021 - 2026)
+const HISTORICAL_MONTHS = [
+  { key: '2025-10', label: 'ต.ค. 68', expense: 17435.18, income: 62704.50 },
+  { key: '2025-11', label: 'พ.ย. 68', expense: 14423.80, income: 53988.70 },
+  { key: '2025-12', label: 'ธ.ค. 68', expense: 14363.36, income: 58774.50 },
+  { key: '2026-01', label: 'ม.ค. 69', expense: 15590.85, income: 60117.60 },
+  { key: '2026-02', label: 'ก.พ. 69', expense: 23278.28, income: 56119.60 },
+  { key: '2026-03', label: 'มี.ค. 69', expense: 11805.34, income: 58393.60 },
+  { key: '2026-04', label: 'เม.ย. 69', expense: 11763.95, income: 57103.60 },
+  { key: '2026-05', label: 'พ.ค. 69', expense: 34848.29, income: 54335.60 },
+  { key: '2026-06', label: 'มิ.ย. 69', expense: 24240.92, income: 59539.20 },
+  { key: '2026-07', label: 'ก.ค. 69', expense: 39497.46, income: 60852.58 },
+  { key: '2026-08', label: 'ส.ค. 69', expense: 35276.41, income: 56983.90 },
+  { key: '2026-09', label: 'ก.ย. 69 (ปัจจุบัน)', expense: 32063.40, income: 63100.90 },
+];
+
+const HISTORICAL_QUARTERS = [
+  { key: '2024-Q4', label: 'Q4/67', expense: 62989.04, income: 152943.40 },
+  { key: '2025-Q1', label: 'Q1/68', expense: 57486.36, income: 184109.50 },
+  { key: '2025-Q2', label: 'Q2/68', expense: 37922.81, income: 154844.78 },
+  { key: '2025-Q3', label: 'Q3/68', expense: 42999.35, income: 166413.00 },
+  { key: '2025-Q4', label: 'Q4/68', expense: 46222.34, income: 175467.70 },
+  { key: '2026-Q1', label: 'Q1/69', expense: 50674.47, income: 174630.80 },
+  { key: '2026-Q2', label: 'Q2/69', expense: 70853.16, income: 170978.40 },
+  { key: '2026-Q3', label: 'Q3/69 (ล่าสุด)', expense: 106837.27, income: 180937.38 },
+];
+
+const HISTORICAL_YEARS = [
+  { key: '2021', label: 'ปี 2564 (7 ด.)', expense: 152025.61, income: 278491.06 },
+  { key: '2022', label: 'ปี 2565', expense: 215920.52, income: 377824.36 },
+  { key: '2023', label: 'ปี 2566', expense: 206584.88, income: 481523.07 },
+  { key: '2024', label: 'ปี 2567 (11 ด.)', expense: 214006.67, income: 507071.10 },
+  { key: '2025', label: 'ปี 2568', expense: 184630.86, income: 680834.98 },
+  { key: '2026', label: 'ปี 2569 (9 ด.)', expense: 228364.90, income: 526546.58 },
+];
+
 export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
   expenses,
   settings,
@@ -75,6 +113,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
   onDeleteExpense,
   onToggleExpensePaid,
   onUpdateExpenseBill,
+  onForceResetNewMonth,
 }) => {
   const [chartViewMode, setChartViewMode] = useState<'category' | 'item'>('category');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -199,42 +238,6 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
       };
     }
   };
-
-  // Real historical trend datasets from Je & May's financial spreadsheet (2021 - 2026)
-  const HISTORICAL_MONTHS = [
-    { key: '2025-10', label: 'ต.ค. 68', expense: 17435.18, income: 62704.50 },
-    { key: '2025-11', label: 'พ.ย. 68', expense: 14423.80, income: 53988.70 },
-    { key: '2025-12', label: 'ธ.ค. 68', expense: 14363.36, income: 58774.50 },
-    { key: '2026-01', label: 'ม.ค. 69', expense: 15590.85, income: 60117.60 },
-    { key: '2026-02', label: 'ก.พ. 69', expense: 23278.28, income: 56119.60 },
-    { key: '2026-03', label: 'มี.ค. 69', expense: 11805.34, income: 58393.60 },
-    { key: '2026-04', label: 'เม.ย. 69', expense: 11763.95, income: 57103.60 },
-    { key: '2026-05', label: 'พ.ค. 69', expense: 34848.29, income: 54335.60 },
-    { key: '2026-06', label: 'มิ.ย. 69', expense: 24240.92, income: 59539.20 },
-    { key: '2026-07', label: 'ก.ค. 69', expense: 39497.46, income: 60852.58 },
-    { key: '2026-08', label: 'ส.ค. 69', expense: 35276.41, income: 56983.90 },
-    { key: '2026-09', label: 'ก.ย. 69 (ปัจจุบัน)', expense: 32063.40, income: 63100.90 },
-  ];
-
-  const HISTORICAL_QUARTERS = [
-    { key: '2024-Q4', label: 'Q4/67', expense: 62989.04, income: 152943.40 },
-    { key: '2025-Q1', label: 'Q1/68', expense: 57486.36, income: 184109.50 },
-    { key: '2025-Q2', label: 'Q2/68', expense: 37922.81, income: 154844.78 },
-    { key: '2025-Q3', label: 'Q3/68', expense: 42999.35, income: 166413.00 },
-    { key: '2025-Q4', label: 'Q4/68', expense: 46222.34, income: 175467.70 },
-    { key: '2026-Q1', label: 'Q1/69', expense: 50674.47, income: 174630.80 },
-    { key: '2026-Q2', label: 'Q2/69', expense: 70853.16, income: 170978.40 },
-    { key: '2026-Q3', label: 'Q3/69 (ล่าสุด)', expense: 106837.27, income: 180937.38 },
-  ];
-
-  const HISTORICAL_YEARS = [
-    { key: '2021', label: 'ปี 2564 (7 ด.)', expense: 152025.61, income: 278491.06 },
-    { key: '2022', label: 'ปี 2565', expense: 215920.52, income: 377824.36 },
-    { key: '2023', label: 'ปี 2566', expense: 206584.88, income: 481523.07 },
-    { key: '2024', label: 'ปี 2567 (11 ด.)', expense: 214006.67, income: 507071.10 },
-    { key: '2025', label: 'ปี 2568', expense: 184630.86, income: 680834.98 },
-    { key: '2026', label: 'ปี 2569 (9 ด.)', expense: 228364.90, income: 526546.58 },
-  ];
 
   // Trend Data for Monthly / Quarterly / Yearly views
   const trendData = useMemo(() => {
@@ -409,7 +412,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
   }, [expenses, statusFilter, filterCategory]);
 
   // Custom Pie Tooltip
-  const CustomExpenseTooltip = ({ active, payload }: any) => {
+  const renderCustomExpenseTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -431,7 +434,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
   };
 
   // Custom Trend Tooltip
-  const CustomTrendTooltip = ({ active, payload, label }: any) => {
+  const renderCustomTrendTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -725,7 +728,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
                 <>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Tooltip content={<CustomExpenseTooltip />} />
+                      <Tooltip content={renderCustomExpenseTooltip} />
                       <Pie
                         data={chartData}
                         cx="50%"
@@ -903,7 +906,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
                 domain={[0, 100]}
                 tickFormatter={(val) => `${val}%`}
               />
-              <Tooltip content={<CustomTrendTooltip />} />
+              <Tooltip content={renderCustomTrendTooltip} />
               <Bar
                 yAxisId="left"
                 dataKey="income"
@@ -1001,6 +1004,32 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
       {/* Interactive Expense Data Table with Status & Category Filter */}
       <div className="space-y-3 pt-2">
         
+        {/* Monthly Billing Cycle Status Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200/90 dark:border-emerald-800/40 text-xs">
+          <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              รอบบิลปัจจุบัน: <strong className="text-emerald-700 dark:text-emerald-400 font-bold">{getMonthLabel(getCurrentYearMonth())}</strong>
+            </span>
+            <span className="hidden md:inline text-slate-400">•</span>
+            <span className="hidden md:inline text-slate-500 dark:text-slate-400 text-[11px]">
+              ถ้าถึงวันกำหนดชำระแล้ว สถานะจะถูกเคลียร์เป็นรอบเดือนใหม่ทันที
+            </span>
+          </div>
+
+          {onForceResetNewMonth && (
+            <button
+              type="button"
+              onClick={onForceResetNewMonth}
+              title="เคลียร์สถานะค่าใช้จ่ายทั้งหมดเป็นรอบเดือนใหม่ทันที"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-slate-800 border border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-semibold transition active:scale-95 shadow-2xs"
+            >
+              <RotateCcw className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>รีเซ็ตขึ้นรอบเดือนใหม่ทันที</span>
+            </button>
+          )}
+        </div>
+
         {/* Table Filter Bar: Status Tabs (All, Unpaid, Paid) & Category Dropdown */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
           
@@ -1199,10 +1228,23 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
                       {/* Due Day */}
                       <td className="py-3 px-4 whitespace-nowrap text-slate-700 dark:text-slate-300">
                         {exp.dueDay ? (
-                          <span className="flex items-center gap-1 text-[11px]">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            ทุกวันที่ {exp.dueDay}
-                          </span>
+                          <div className="space-y-0.5">
+                            <span className="flex items-center gap-1 text-[11px] font-medium">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              ทุกวันที่ {exp.dueDay}
+                            </span>
+                            {!exp.isPaidThisMonth && (
+                              new Date().getDate() >= exp.dueDay ? (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800/80">
+                                  ถึงกำหนดชำระแล้ว
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] text-slate-500 dark:text-slate-400">
+                                  อีก {exp.dueDay - new Date().getDate()} วัน
+                                </span>
+                              )
+                            )}
+                          </div>
                         ) : '-'}
                       </td>
 

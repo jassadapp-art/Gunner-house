@@ -16,7 +16,22 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
+  Cloud,
+  RefreshCw,
+  Copy,
+  Check,
+  ExternalLink,
+  Smartphone,
+  Laptop,
+  Database,
 } from 'lucide-react';
+import {
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  clearSupabaseConfig,
+  testSupabaseConnection,
+  SUPABASE_SQL_SETUP,
+} from '../services/supabaseSync';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -33,6 +48,10 @@ interface SettingsModalProps {
     expenses?: MonthlyExpense[];
   }) => void;
   onResetData: () => void;
+  initialTab?: 'profile' | 'security' | 'categories' | 'cloud' | 'data';
+  cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
+  onTriggerCloudSync?: () => Promise<void>;
+  onConfigSaved?: () => void;
 }
 
 const AVATAR_OPTIONS = ['👨🏻‍💻', '👩🏻‍🎨', '👨‍💼', '👩‍💼', '🧔‍♂️', '👩‍🦰', '🧑‍🚀', '👸', '🤴', '🐱', '🐶', '🐼'];
@@ -47,6 +66,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveSettings,
   onImportData,
   onResetData,
+  initialTab,
+  cloudStatus = 'offline',
+  onTriggerCloudSync,
+  onConfigSaved,
 }) => {
   const [householdName, setHouseholdName] = useState(settings.householdName);
   
@@ -81,7 +104,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   );
   const [newCatInput, setNewCatInput] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'categories' | 'data'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'categories' | 'cloud' | 'data'>(initialTab || 'profile');
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // Cloud Sync state
+  const config = getSupabaseConfig();
+  const [supabaseUrl, setSupabaseUrl] = useState(config.url);
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(config.anonKey);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [isSyncingManual, setIsSyncingManual] = useState(false);
+  const [cloudMsg, setCloudMsg] = useState<string | null>(null);
+
   const [isPasswordProtected, setIsPasswordProtected] = useState(settings.isPasswordProtected !== false);
   const [password, setPassword] = useState(settings.password || '1234');
   const [showPassword, setShowPassword] = useState(false);
@@ -102,6 +142,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleRemoveCategory = (catToRemove: string) => {
     setCategories(categories.filter(c => c !== catToRemove));
+  };
+
+  const handleSaveCloudConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      setTestResult({ success: false, message: 'กรุณากรอกทั้ง Project URL และ Anon Key' });
+      return;
+    }
+    saveSupabaseConfig(supabaseUrl, supabaseAnonKey);
+    setTestingConnection(true);
+    setTestResult(null);
+    const result = await testSupabaseConnection();
+    setTestingConnection(false);
+    setTestResult(result);
+    if (result.success) {
+      onConfigSaved?.();
+      setCloudMsg('บันทึกการตั้งค่าและเชื่อมต่อสำเร็จ!');
+      setTimeout(() => setCloudMsg(null), 3000);
+    }
+  };
+
+  const handleTestCloudConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+    const result = await testSupabaseConnection();
+    setTestingConnection(false);
+    setTestResult(result);
+  };
+
+  const handleClearCloud = () => {
+    if (confirm('คุณต้องการยกเลิกการเชื่อมต่อ Cloud และกลับไปใช้ LocalStorage ในเครื่องนี้ใช่หรือไม่?')) {
+      clearSupabaseConfig();
+      setSupabaseUrl('');
+      setSupabaseAnonKey('');
+      setTestResult(null);
+      onConfigSaved?.();
+      setCloudMsg('ยกเลิกการเชื่อมต่อ Cloud แล้ว');
+      setTimeout(() => setCloudMsg(null), 3000);
+    }
+  };
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(SUPABASE_SQL_SETUP);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2500);
+  };
+
+  const handleManualSyncNow = async () => {
+    if (!onTriggerCloudSync) return;
+    setIsSyncingManual(true);
+    try {
+      await onTriggerCloudSync();
+      setCloudMsg('ซิงค์ข้อมูลขึ้น Cloud เรียบร้อยแล้ว!');
+      setTimeout(() => setCloudMsg(null), 3000);
+    } catch (err: any) {
+      setCloudMsg('เกิดข้อผิดพลาดในการซิงค์: ' + err?.message);
+    } finally {
+      setIsSyncingManual(false);
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -159,7 +258,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
           alert('ไฟล์ข้อมูลไม่ถูกต้องตามโครงสร้าง');
         }
-      } catch (err) {
+      } catch {
         alert('เกิดข้อผิดพลาดในการอ่านไฟล์ JSON');
       }
     };
@@ -223,6 +322,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Tag className="w-3.5 h-3.5" />
             หมวดหมู่ ({categories.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('cloud')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+              activeTab === 'cloud'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Cloud ซิงค์สด</span>
+            {config.isConfigured && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('data')}
@@ -558,6 +671,229 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   บันทึกหมวดหมู่
                 </button>
+              </div>
+            </div>
+          ) : activeTab === 'cloud' ? (
+            <div className="space-y-4">
+              {/* Cloud Status Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/40 dark:from-slate-950/80 dark:to-emerald-950/20 border border-slate-200 dark:border-emerald-500/20">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <Cloud className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        ฐานข้อมูลกลาง Supabase (Realtime Sync)
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        เชื่อมโยงข้อมูลระหว่างคอมพิวเตอร์และมือถือแบบ Realtime
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    cloudStatus === 'connected'
+                      ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                      : cloudStatus === 'syncing'
+                      ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
+                      : cloudStatus === 'error'
+                      ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      cloudStatus === 'connected'
+                        ? 'bg-emerald-500 animate-pulse'
+                        : cloudStatus === 'syncing'
+                        ? 'bg-amber-500 animate-spin'
+                        : cloudStatus === 'error'
+                        ? 'bg-rose-500'
+                        : 'bg-slate-400'
+                    }`}></span>
+                    <span>
+                      {cloudStatus === 'connected'
+                        ? 'เชื่อมต่อแล้ว (ซิงค์สด)'
+                        : cloudStatus === 'syncing'
+                        ? 'กำลังซิงค์...'
+                        : cloudStatus === 'error'
+                        ? 'เชื่อมต่อไม่สำเร็จ'
+                        : 'ออฟไลน์ (ในเครื่องนี้)'}
+                    </span>
+                  </span>
+                </div>
+
+                {/* Device sync preview */}
+                <div className="mt-3.5 pt-3 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-around text-xs text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Laptop className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>คอมพิวเตอร์</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                    <span>⇄</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20">Realtime</span>
+                    <span>⇄</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>โทรศัพท์มือถือ</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Message */}
+              {cloudMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{cloudMsg}</span>
+                </div>
+              )}
+
+              {/* Test Result Message */}
+              {testResult && (
+                <div className={`p-3 rounded-xl text-xs border flex items-start gap-2 ${
+                  testResult.success
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200'
+                }`}>
+                  {testResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <span>{testResult.message}</span>
+                </div>
+              )}
+
+              {/* Form Settings */}
+              <form onSubmit={handleSaveCloudConfig} className="space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Supabase Project URL
+                    </label>
+                    <a
+                      href="https://supabase.com/dashboard"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-emerald-600 hover:text-emerald-500 flex items-center gap-1"
+                    >
+                      <span>เปิด Supabase Dashboard</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <input
+                    type="url"
+                    value={supabaseUrl}
+                    onChange={e => setSupabaseUrl(e.target.value)}
+                    placeholder="https://xxxxxxxxxxxx.supabase.co"
+                    disabled={config.isFromEnv}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-60"
+                  />
+                  {config.isFromEnv && (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      ℹ️ ค่านี้ถูกตั้งค่ามาจาก Render Environment Variables เรียบร้อยแล้ว
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                    Supabase Public Anon Key
+                  </label>
+                  <input
+                    type="password"
+                    value={supabaseAnonKey}
+                    onChange={e => setSupabaseAnonKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    disabled={config.isFromEnv}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 transition disabled:opacity-60 font-mono"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {!config.isFromEnv && (
+                    <button
+                      type="submit"
+                      disabled={testingConnection}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <span>💾 บันทึกและเชื่อมต่อ</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleTestCloudConnection}
+                    disabled={testingConnection || !supabaseUrl || !supabaseAnonKey}
+                    className="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium text-xs border border-slate-300 dark:border-slate-700 transition disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${testingConnection ? 'animate-spin' : ''}`} />
+                    <span>{testingConnection ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}</span>
+                  </button>
+
+                  {config.isConfigured && onTriggerCloudSync && (
+                    <button
+                      type="button"
+                      onClick={handleManualSyncNow}
+                      disabled={isSyncingManual}
+                      className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-medium text-xs hover:bg-teal-100 transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingManual ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลเดี๋ยวนี้'}</span>
+                    </button>
+                  )}
+
+                  {config.isConfigured && !config.isFromEnv && (
+                    <button
+                      type="button"
+                      onClick={handleClearCloud}
+                      className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs transition"
+                    >
+                      ล้างค่าเชื่อมต่อ
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* SQL Script Card */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      คำสั่ง SQL สร้างตารางใน Supabase (ทำครั้งเดียว)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition flex items-center gap-1 shadow-2xs"
+                  >
+                    {copiedSql ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedSql ? 'คัดลอกแล้ว!' : 'คัดลอกคำสั่ง SQL'}</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  นำคำสั่งนี้ไปวางในเมนู <strong>SQL Editor</strong> บน Supabase แล้วกดปุ่ม <strong>Run</strong> ระบบจะสร้างตารางและเปิดใช้งาน Realtime ให้ทันที
+                </p>
+              </div>
+
+              {/* Render Environment Setup Tip */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200">
+                <p className="font-bold mb-1 flex items-center gap-1.5">
+                  <span>💡 เคล็ดลับให้คอมและมือถือลิ้งค์กันอัตโนมัติ:</span>
+                </p>
+                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                  ไปที่ <strong>Render Dashboard</strong> ➡️ คลิกที่เว็บไซต์ของคุณ ➡️ ไปที่แท็บ <strong>Environment</strong> ➡️ เพิ่ม 2 ตัวแปรนี้:
+                </p>
+                <div className="mt-2 space-y-1 font-mono text-[10px] bg-white dark:bg-slate-900 p-2 rounded-lg border border-amber-200 dark:border-amber-900">
+                  <div><strong>VITE_SUPABASE_URL</strong> = <em>(Project URL ของคุณ)</em></div>
+                  <div><strong>VITE_SUPABASE_ANON_KEY</strong> = <em>(Anon Key ของคุณ)</em></div>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
+                  เมื่อเพิ่มใน Render แล้ว ทุกอุปกรณ์ที่เปิดเว็บ (ทั้งคอมและโทรศัพท์ของเมย์/เจ) จะเชื่อมต่อเข้าหากันทันที 100% โดยไม่ต้องพิมพ์รหัสในโทรศัพท์เลยครับ!
+                </p>
               </div>
             </div>
           ) : (
