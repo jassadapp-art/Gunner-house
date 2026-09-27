@@ -6,23 +6,34 @@ const GOALS_KEY = 'household_savings_goals_v8';
 const TRANSACTIONS_KEY = 'household_savings_transactions_v8';
 const EXPENSES_KEY = 'household_savings_expenses_v8';
 
-// Ensure browser automatically loads the updated dataset
-(() => {
+/**
+ * Safe fallback reader:
+ * First checks v8; if not found, checks older versions (v7, v6, etc.) and migrates data forward
+ * to guarantee that previously saved user data is NEVER lost or deleted.
+ */
+const getWithFallback = (baseKey: string): string | null => {
   try {
-    ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'].forEach(ver => {
-      localStorage.removeItem(`household_savings_settings_${ver}`);
-      localStorage.removeItem(`household_savings_goals_${ver}`);
-      localStorage.removeItem(`household_savings_transactions_${ver}`);
-      localStorage.removeItem(`household_savings_expenses_${ver}`);
-    });
-  } catch {
-    // Ignore local storage parse error
+    const current = localStorage.getItem(`${baseKey}_v8`);
+    if (current) return current;
+
+    // Check previous versions in descending order
+    for (const ver of ['v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+      const prev = localStorage.getItem(`${baseKey}_${ver}`);
+      if (prev) {
+        // Automatically migrate forward to v8 so user data is preserved
+        localStorage.setItem(`${baseKey}_v8`, prev);
+        return prev;
+      }
+    }
+  } catch (err) {
+    console.error('Failed reading storage key with fallback', err);
   }
-})();
+  return null;
+};
 
 export const loadStoredSettings = (): HouseholdSettings => {
   try {
-    const saved = localStorage.getItem(SETTINGS_KEY);
+    const saved = getWithFallback('household_savings_settings');
     if (saved) return JSON.parse(saved);
   } catch (err) {
     console.error('Failed to load settings from storage', err);
@@ -40,7 +51,7 @@ export const saveStoredSettings = (settings: HouseholdSettings): void => {
 
 export const loadStoredGoals = (): SavingsGoal[] => {
   try {
-    const saved = localStorage.getItem(GOALS_KEY);
+    const saved = getWithFallback('household_savings_goals');
     if (saved) return JSON.parse(saved);
   } catch (err) {
     console.error('Failed to load goals from storage', err);
@@ -58,7 +69,7 @@ export const saveStoredGoals = (goals: SavingsGoal[]): void => {
 
 export const loadStoredTransactions = (): Transaction[] => {
   try {
-    const saved = localStorage.getItem(TRANSACTIONS_KEY);
+    const saved = getWithFallback('household_savings_transactions');
     if (saved) return JSON.parse(saved);
   } catch (err) {
     console.error('Failed to load transactions from storage', err);
@@ -76,7 +87,7 @@ export const saveStoredTransactions = (transactions: Transaction[]): void => {
 
 export const loadStoredExpenses = (): MonthlyExpense[] => {
   try {
-    const saved = localStorage.getItem(EXPENSES_KEY);
+    const saved = getWithFallback('household_savings_expenses');
     if (saved) return JSON.parse(saved);
   } catch (err) {
     console.error('Failed to load expenses from storage', err);
