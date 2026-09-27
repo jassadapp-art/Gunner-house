@@ -19,8 +19,28 @@ export const getSupabaseConfig = () => {
   const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-  const localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) || '' : '';
-  const localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) || '' : '';
+  let localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) || '' : '';
+  let localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) || '' : '';
+
+  // Auto-import credentials from URL query params (for 1-click mobile connect from LINE/chat)
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const paramUrl = params.get('sb_url') || params.get('supabase_url');
+      const paramKey = params.get('sb_key') || params.get('supabase_key');
+      if (paramUrl && paramKey) {
+        localUrl = paramUrl.trim();
+        localKey = paramKey.trim();
+        localStorage.setItem(STORAGE_URL_KEY, localUrl);
+        localStorage.setItem(STORAGE_KEY_KEY, localKey);
+        // Clean params from address bar smoothly
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+  }
 
   const url = (envUrl && envUrl.trim()) || localUrl.trim();
   const anonKey = (envKey && envKey.trim()) || localKey.trim();
@@ -31,6 +51,17 @@ export const getSupabaseConfig = () => {
     isConfigured: Boolean(url && anonKey),
     isFromEnv: Boolean(envUrl && envKey),
   };
+};
+
+/**
+ * Generates an instant 1-click setup link to open on Mobile
+ */
+export const getMobileSyncShareLink = (): string => {
+  if (typeof window === 'undefined') return '';
+  const { url, anonKey, isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return '';
+  const base = window.location.origin + window.location.pathname;
+  return `${base}?sb_url=${encodeURIComponent(url)}&sb_key=${encodeURIComponent(anonKey)}`;
 };
 
 export const saveSupabaseConfig = (url: string, anonKey: string) => {
@@ -164,7 +195,8 @@ export const pushCloudHouseholdData = async (data: HouseholdCloudData): Promise<
 };
 
 export const subscribeToCloudChanges = (
-  onRemoteChange: (data: HouseholdCloudData) => void
+  onRemoteChange: (data: HouseholdCloudData) => void,
+  onStatusChange?: (status: 'connected' | 'syncing' | 'offline' | 'error') => void
 ): (() => void) => {
   const client = getSupabaseClient();
   if (!client) return () => {};
@@ -197,7 +229,13 @@ export const subscribeToCloudChanges = (
         }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        onStatusChange?.('connected');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        onStatusChange?.('error');
+      }
+    });
 
   currentChannel = channel;
 

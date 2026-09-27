@@ -168,11 +168,13 @@ export function App() {
   }, [expenses]);
 
   const currentDataRef = useRef({ settings, goals, transactions, expenses });
+  const lastCloudUpdatedAtRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     currentDataRef.current = { settings, goals, transactions, expenses };
   }, [settings, goals, transactions, expenses]);
 
-  // 1. Cloud Sync on Mount & Realtime Subscription
+  // 1. Cloud Sync on Mount & Realtime Subscription + Mobile Wake-Up Polling
   useEffect(() => {
     const config = getSupabaseConfig();
     if (!config.isConfigured) {
@@ -181,50 +183,93 @@ export function App() {
 
     let isMounted = true;
 
-    // Fetch initial state from Supabase
-    fetchCloudHouseholdData()
-      .then(cloudData => {
+    const syncFromCloud = async (isBackgroundPoll = false) => {
+      try {
+        const cloudData = await fetchCloudHouseholdData();
         if (!isMounted) return;
+
         if (cloudData) {
-          isRemoteUpdatingRef.current = true;
-          setSettings(cloudData.settings);
-          setGoals(cloudData.goals);
-          setTransactions(cloudData.transactions);
-          if (cloudData.expenses) setExpenses(cloudData.expenses);
-          setCloudStatus('connected');
-          setTimeout(() => {
-            isRemoteUpdatingRef.current = false;
-          }, 400);
-        } else {
+          // Only update if it's the initial load or cloud has a newer timestamp
+          if (!lastCloudUpdatedAtRef.current || (cloudData.updated_at && cloudData.updated_at !== lastCloudUpdatedAtRef.current)) {
+            isRemoteUpdatingRef.current = true;
+            lastCloudUpdatedAtRef.current = cloudData.updated_at;
+            setSettings(cloudData.settings);
+            setGoals(cloudData.goals);
+            setTransactions(cloudData.transactions);
+            if (cloudData.expenses) setExpenses(cloudData.expenses);
+            setCloudStatus('connected');
+            if (isBackgroundPoll) {
+              showToast('🔄 ข้อมูลอัปเดตตรงกับอีกอุปกรณ์แล้ว');
+            }
+            setTimeout(() => {
+              isRemoteUpdatingRef.current = false;
+            }, 400);
+          }
+        } else if (!isBackgroundPoll) {
           // Table has no record yet -> initialize with local state
-          pushCloudHouseholdData(currentDataRef.current).then(ok => {
+          const nowIso = new Date().toISOString();
+          lastCloudUpdatedAtRef.current = nowIso;
+          pushCloudHouseholdData({
+            ...currentDataRef.current,
+            updated_at: nowIso,
+          }).then(ok => {
             if (isMounted) setCloudStatus(ok ? 'connected' : 'error');
           });
         }
-      })
-      .catch(err => {
-        console.error('Initial cloud fetch error:', err);
-        if (isMounted) setCloudStatus('error');
-      });
+      } catch (err) {
+        console.error('Cloud sync error:', err);
+        if (isMounted && !isBackgroundPoll) setCloudStatus('error');
+      }
+    };
+
+    // Initial fetch on mount
+    syncFromCloud(false);
 
     // Subscribe to Realtime postgres changes
-    const unsubscribe = subscribeToCloudChanges(newData => {
-      if (!isMounted) return;
-      isRemoteUpdatingRef.current = true;
-      setSettings(newData.settings);
-      setGoals(newData.goals);
-      setTransactions(newData.transactions);
-      if (newData.expenses) setExpenses(newData.expenses);
-      setCloudStatus('connected');
-      showToast('🔄 ข้อมูลอัปเดตตรงกับอีกอุปกรณ์แล้ว');
-      setTimeout(() => {
-        isRemoteUpdatingRef.current = false;
-      }, 500);
-    });
+    const unsubscribe = subscribeToCloudChanges(
+      newData => {
+        if (!isMounted) return;
+        isRemoteUpdatingRef.current = true;
+        lastCloudUpdatedAtRef.current = newData.updated_at;
+        setSettings(newData.settings);
+        setGoals(newData.goals);
+        setTransactions(newData.transactions);
+        if (newData.expenses) setExpenses(newData.expenses);
+        setCloudStatus('connected');
+        showToast('🔄 ข้อมูลอัปเดตสดจากอีกอุปกรณ์แล้ว');
+        setTimeout(() => {
+          isRemoteUpdatingRef.current = false;
+        }, 500);
+      },
+      status => {
+        if (isMounted) setCloudStatus(status);
+      }
+    );
+
+    // Mobile Phone Wake-up: when user unlocks screen or switches back to browser tab
+    const handleWakeUp = () => {
+      if (document.visibilityState === 'visible') {
+        syncFromCloud(true);
+      }
+    };
+
+    window.addEventListener('focus', handleWakeUp);
+    document.addEventListener('visibilitychange', handleWakeUp);
+
+    // Bulletproof Polling Fallback (every 4 seconds for active screen)
+    // Ensures real-time sync even if mobile network or carrier drops WebSocket
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncFromCloud(true);
+      }
+    }, 4000);
 
     return () => {
       isMounted = false;
       unsubscribe();
+      window.removeEventListener('focus', handleWakeUp);
+      document.removeEventListener('visibilitychange', handleWakeUp);
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -236,14 +281,17 @@ export function App() {
 
     const timer = setTimeout(async () => {
       setCloudStatus('syncing');
+      const nowIso = new Date().toISOString();
+      lastCloudUpdatedAtRef.current = nowIso;
       const ok = await pushCloudHouseholdData({
         settings,
         goals,
         transactions,
         expenses,
+        updated_at: nowIso,
       });
       setCloudStatus(ok ? 'connected' : 'error');
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [settings, goals, transactions, expenses]);
@@ -251,15 +299,42 @@ export function App() {
   // 3. Manual Sync Handler
   const handleTriggerCloudSync = async () => {
     const config = getSupabaseConfig();
-    if (!config.isConfigured) return;
+    if (!config.isConfigured) {
+      showToast('⚠️ กรุณาระบุ Supabase URL และ Key ก่อนซิงค์');
+      return;
+    }
     setCloudStatus('syncing');
-    const ok = await pushCloudHouseholdData({
-      settings,
-      goals,
-      transactions,
-      expenses,
-    });
-    setCloudStatus(ok ? 'connected' : 'error');
+    try {
+      const cloudData = await fetchCloudHouseholdData();
+      if (cloudData) {
+        isRemoteUpdatingRef.current = true;
+        lastCloudUpdatedAtRef.current = cloudData.updated_at;
+        setSettings(cloudData.settings);
+        setGoals(cloudData.goals);
+        setTransactions(cloudData.transactions);
+        if (cloudData.expenses) setExpenses(cloudData.expenses);
+        setCloudStatus('connected');
+        showToast('✅ ดึงข้อมูลล่าสุดจาก Cloud เรียบร้อยแล้ว');
+        setTimeout(() => {
+          isRemoteUpdatingRef.current = false;
+        }, 400);
+      } else {
+        const nowIso = new Date().toISOString();
+        lastCloudUpdatedAtRef.current = nowIso;
+        const ok = await pushCloudHouseholdData({
+          settings,
+          goals,
+          transactions,
+          expenses,
+          updated_at: nowIso,
+        });
+        setCloudStatus(ok ? 'connected' : 'error');
+        showToast(ok ? '✅ อัปโหลดข้อมูลขึ้น Cloud สำเร็จ' : '❌ ไม่สามารถอัปโหลดได้');
+      }
+    } catch {
+      setCloudStatus('error');
+      showToast('❌ การซิงค์ขัดข้อง ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+    }
   };
 
   // Trigger celebratory confetti

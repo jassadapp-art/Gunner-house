@@ -31,6 +31,7 @@ import {
   clearSupabaseConfig,
   testSupabaseConnection,
   SUPABASE_SQL_SETUP,
+  getMobileSyncShareLink,
 } from '../services/supabaseSync';
 
 interface SettingsModalProps {
@@ -121,6 +122,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncingManual, setIsSyncingManual] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
+  const [copiedMobileLink, setCopiedMobileLink] = useState(false);
 
   const [isPasswordProtected, setIsPasswordProtected] = useState(settings.isPasswordProtected !== false);
   const [password, setPassword] = useState(settings.password || '1234');
@@ -739,6 +741,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* 1-Click Mobile Connect Link Card */}
+              {config.isConfigured && (
+                <div className="p-4 rounded-2xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                    <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <div className="font-bold text-xs">
+                      📲 เชื่อมต่อมือถือให้ Realtime ใน 1 คลิก
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300 leading-relaxed">
+                    กดปุ่มด้านล่างเพื่อคัดลอกลิงก์ แล้วส่งเข้า <strong>LINE</strong> หรือเปิดในเบราว์เซอร์มือถือของคุณ มือถือจะเชื่อมต่อฐานข้อมูล Cloud ให้ทันทีโดยไม่ต้องพิมพ์ Key เอง!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const link = getMobileSyncShareLink();
+                      navigator.clipboard.writeText(link);
+                      setCopiedMobileLink(true);
+                      setTimeout(() => setCopiedMobileLink(false), 3000);
+                    }}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                  >
+                    {copiedMobileLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedMobileLink ? 'คัดลอกลิงก์แล้ว! ส่งเข้า LINE เปิดในมือถือได้เลย' : 'คัดลอกลิงก์สำหรับเปิดในมือถือ'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* Notification Message */}
               {cloudMsg && (
