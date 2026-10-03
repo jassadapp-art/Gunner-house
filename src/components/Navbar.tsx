@@ -34,8 +34,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   cloudStatus = 'offline',
   onOpenCloudModal,
 }) => {
-  const memberA = settings.members.person_a;
-  const memberB = settings.members.person_b;
   const isLight = (settings.theme ?? 'light') === 'light';
 
   const navItems: { id: ActivePage; label: string; number: string; icon: React.ReactNode }[] = [
@@ -91,20 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Actions & Utilities */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              
-              {/* Member Pills */}
-              <div className="hidden lg:flex items-center bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-1 gap-1.5">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20 text-xs text-slate-800 dark:text-slate-200 shadow-2xs">
-                  <span className="text-sm">{memberA.avatar}</span>
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">{memberA.nickname}</span>
-                </div>
-                <span className="text-xs font-bold text-slate-400">&</span>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-indigo-500/10 border border-indigo-300 dark:border-indigo-500/20 text-xs text-slate-800 dark:text-slate-200 shadow-2xs">
-                  <span className="text-sm">{memberB.avatar}</span>
-                  <span className="font-semibold text-indigo-700 dark:text-indigo-400">{memberB.nickname}</span>
-                </div>
-              </div>
-
               {/* Theme Toggle Button */}
               <button
                 onClick={onToggleTheme}

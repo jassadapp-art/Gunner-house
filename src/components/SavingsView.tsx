@@ -17,7 +17,6 @@ import {
   Search,
   ArrowUpDown,
   BookOpen,
-  Table,
   TrendingUp,
   TrendingDown,
   Sparkles,
@@ -77,9 +76,8 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 }) => {
   const currentMonthKey = getCurrentYearMonth();
 
-  // Navigation tabs matching MonthlyLedgerView:
-  // 1. Passbook Table (Image 4), 2. Transposed Monthly Summary (แนวนอน), 3. Goals & Funds
-  const [activeTab, setActiveTab] = useState<'monthly' | 'passbook' | 'goals'>('monthly');
+  // Navigation tabs: 1. Passbook Table, 2. Goals & Funds
+  const [activeTab, setActiveTab] = useState<'monthly' | 'passbook' | 'goals'>('passbook');
   const [tableOrientation, setTableOrientation] = useState<'vertical' | 'transposed'>('transposed');
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [searchTerm, setSearchTerm] = useState('');
@@ -441,37 +439,6 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
           
           {/* View Modes Switcher */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start">
-            <button
-              onClick={() => {
-                setActiveTab('monthly');
-                setTableOrientation('transposed');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'monthly' && tableOrientation === 'transposed'
-                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="ตารางรายเดือนแนวนอน (เดือนเป็นคอลัมน์)"
-            >
-              <Table className="w-3.5 h-3.5" />
-              <span>🔄 แนวนอน</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('monthly');
-                setTableOrientation('vertical');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'monthly' && tableOrientation === 'vertical'
-                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="ตารางรายเดือนแนวตั้ง (เดือนเป็นแถว)"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>📋 แนวตั้ง</span>
-            </button>
 
             <button
               onClick={() => {
