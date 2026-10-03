@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HouseholdSettings, ActivePage } from '../types';
 import {
   Settings,
@@ -10,6 +10,9 @@ import {
   Cloud,
   LayoutDashboard,
   TrendingUp,
+  Edit2,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -22,6 +25,7 @@ interface NavbarProps {
   onLockScreen?: () => void;
   cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
   onOpenCloudModal?: () => void;
+  onUpdateHouseholdTitle?: (name: string, subtitle?: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -33,8 +37,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLockScreen,
   cloudStatus = 'offline',
   onOpenCloudModal,
+  onUpdateHouseholdTitle,
 }) => {
   const isLight = (settings.theme ?? 'light') === 'light';
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(settings.householdName);
+  const [tempSubtitle, setTempSubtitle] = useState(
+    settings.householdSubtitle || 'ระบบบริหารการเงินครัวเรือน 4 หน้า (Dashboard, บัญชีรายเดือน, เงินออม, ลงทุน&ภาษี)'
+  );
+
+  useEffect(() => {
+    setTempTitle(settings.householdName);
+    setTempSubtitle(
+      settings.householdSubtitle || 'ระบบบริหารการเงินครัวเรือน 4 หน้า (Dashboard, บัญชีรายเดือน, เงินออม, ลงทุน&ภาษี)'
+    );
+  }, [settings.householdName, settings.householdSubtitle]);
+
+  const handleSaveTitle = () => {
+    if (onUpdateHouseholdTitle) {
+      onUpdateHouseholdTitle(tempTitle.trim() || settings.householdName, tempSubtitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
 
   const navItems: { id: ActivePage; label: string; number: string; icon: React.ReactNode }[] = [
     {
@@ -76,14 +101,65 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <PiggyBank className="w-6 h-6 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-xs">
-                    {settings.householdName}
-                  </h1>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                  ระบบบริหารการเงินครัวเรือน 4 หน้า (Dashboard, บัญชีรายเดือน, เงินออม, ลงทุน&ภาษี)
-                </p>
+                {isEditingTitle ? (
+                  <div className="flex flex-col gap-1.5 p-2 bg-white dark:bg-slate-900 border border-emerald-500 rounded-2xl shadow-lg">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={tempTitle}
+                        onChange={e => setTempTitle(e.target.value)}
+                        placeholder="ชื่อบ้าน..."
+                        className="px-2 py-0.5 text-xs sm:text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 min-w-[180px]"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveTitle();
+                          if (e.key === 'Escape') setIsEditingTitle(false);
+                        }}
+                      />
+                      <button
+                        onClick={handleSaveTitle}
+                        className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer transition shadow-2xs"
+                        title="บันทึก"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setIsEditingTitle(false)}
+                        className="p-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer transition"
+                        title="ยกเลิก"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={tempSubtitle}
+                      onChange={e => setTempSubtitle(e.target.value)}
+                      placeholder="คำอธิบาย..."
+                      className="px-2 py-0.5 text-[10px] rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleSaveTitle();
+                        if (e.key === 'Escape') setIsEditingTitle(false);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setIsEditingTitle(true)}
+                    className="group cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/60 rounded-xl p-1 -m-1 transition"
+                    title="คลิกเพื่อแก้ไขชื่อบ้านหรือคำอธิบาย"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-xs">
+                        {settings.householdName}
+                      </h1>
+                      <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition shrink-0" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+                      {settings.householdSubtitle || 'ระบบบริหารการเงินครัวเรือน 4 หน้า (Dashboard, บัญชีรายเดือน, เงินออม, ลงทุน&ภาษี)'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

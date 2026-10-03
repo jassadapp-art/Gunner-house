@@ -28,6 +28,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Check,
+  CreditCard,
 } from 'lucide-react';
 
 interface MonthlyLedgerViewProps {
@@ -37,7 +39,13 @@ interface MonthlyLedgerViewProps {
   onOpenExpenseModal: (expense?: MonthlyExpense | null) => void;
   onOpenAddTransactionModal: (type?: 'deposit' | 'withdrawal', category?: string) => void;
   onToggleExpensePaid: (expenseId: string) => void;
-  onUpdateExpenseBill: (expenseId: string, amount: number, markAsPaid?: boolean) => void;
+  onUpdateExpenseBill: (expenseId: string, amount: number, markAsPaid?: boolean, targetMonthKey?: string) => void;
+  onUpdateMonthExpenses?: (
+    monthKey: string,
+    billsMap: Record<string, number>,
+    estimatedAmount?: number,
+    adhocAmount?: number
+  ) => void;
   onUpdateExpenseEstimatedAmount?: (expenseId: string, amount: number) => void;
   onUpdateMonthlyIncome?: (
     monthKey: string,
@@ -83,6 +91,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   onOpenAddTransactionModal,
   onToggleExpensePaid,
   onUpdateExpenseBill,
+  onUpdateMonthExpenses,
   onUpdateExpenseEstimatedAmount,
   onUpdateMonthlyIncome,
   onDeleteExpense,
@@ -234,12 +243,29 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [tempBillAmount, setTempBillAmount] = useState<string>('');
 
+  // Modal state for editing full month expenses
+  const [editingExpenseMonth, setEditingExpenseMonth] = useState<string | null>(null);
+  const [editExpenseBills, setEditExpenseBills] = useState<Record<string, number>>({});
+  const [editExpenseAdhoc, setEditExpenseAdhoc] = useState<string>('');
+  const [editExpenseEstimated, setEditExpenseEstimated] = useState<string>('');
+
+  // Inline cell editing state (click-to-edit cell in table)
+  const [editingExpenseCell, setEditingExpenseCell] = useState<{
+    monthKey: string;
+    field: string;
+  } | null>(null);
+  const [expenseCellVal, setExpenseCellVal] = useState<string>('');
+
   // 1. Gather all unique months recorded across incomes, expenses, and transactions
   const allRecordedMonths = useMemo(() => {
     const set = new Set<string>();
 
     if (settings.monthlyIncomes) {
       Object.keys(settings.monthlyIncomes).forEach(m => set.add(m));
+    }
+
+    if (settings.monthlyExpenseOverrides) {
+      Object.keys(settings.monthlyExpenseOverrides).forEach(m => set.add(m));
     }
 
     expenses.forEach(e => {
@@ -258,7 +284,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     set.add(currentMonthKey);
 
     return Array.from(set).sort();
-  }, [settings.monthlyIncomes, expenses, transactions, currentMonthKey]);
+  }, [settings.monthlyIncomes, settings.monthlyExpenseOverrides, expenses, transactions, currentMonthKey]);
 
   // 2. Build Incomes Table Data matching Image 1
   const allIncomeRows = useMemo<MonthIncomeData[]>(() => {
@@ -286,11 +312,17 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       expenses.forEach(e => {
         monthExpenses += getExpenseAmountForMonth(e, mKey);
       });
-      transactions.forEach(t => {
-        if (t.date.startsWith(mKey) && t.type === 'withdrawal') {
-          monthExpenses += t.amount;
-        }
-      });
+
+      const expOverride = settings.monthlyExpenseOverrides?.[mKey];
+      if (expOverride?.adhoc !== undefined) {
+        monthExpenses += expOverride.adhoc;
+      } else {
+        transactions.forEach(t => {
+          if (t.date.startsWith(mKey) && t.type === 'withdrawal') {
+            monthExpenses += t.amount;
+          }
+        });
+      }
 
       const netBalance = totalIncome - monthExpenses;
 
@@ -307,7 +339,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         netBalance,
       };
     });
-  }, [allRecordedMonths, settings.monthlyIncomes, memberA.monthlyIncome, memberB.monthlyIncome, currentMonthKey, transactions, expenses]);
+  }, [allRecordedMonths, settings.monthlyIncomes, settings.monthlyExpenseOverrides, memberA.monthlyIncome, memberB.monthlyIncome, currentMonthKey, transactions, expenses]);
 
   // Filter and sort incomes
   const displayIncomeRows = useMemo(() => {
@@ -351,21 +383,28 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         if (isPaid) paidCount++;
       });
 
+      const override = settings.monthlyExpenseOverrides?.[mKey];
+
       let adhocTotal = 0;
-      transactions.forEach(t => {
-        if (t.date.startsWith(mKey) && t.type === 'withdrawal') {
-          adhocTotal += t.amount;
-        }
-      });
+      if (override?.adhoc !== undefined) {
+        adhocTotal = override.adhoc;
+      } else {
+        transactions.forEach(t => {
+          if (t.date.startsWith(mKey) && t.type === 'withdrawal') {
+            adhocTotal += t.amount;
+          }
+        });
+      }
       actualTotal += adhocTotal;
 
-      const diff = baseEstimated - actualTotal;
+      const estimatedTotal = override?.estimated !== undefined ? override.estimated : baseEstimated;
+      const diff = estimatedTotal - actualTotal;
 
       return {
         index: idx + 1,
         monthKey: mKey,
         monthLabel: formatSpreadsheetMonth(mKey),
-        estimatedTotal: baseEstimated,
+        estimatedTotal,
         actualTotal,
         difference: diff,
         items: itemsMap,
@@ -374,7 +413,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         totalBills: expenses.length,
       };
     });
-  }, [allRecordedMonths, expenses, transactions, currentMonthKey]);
+  }, [allRecordedMonths, expenses, transactions, currentMonthKey, settings.monthlyExpenseOverrides]);
 
   // Current Month Data for quick banner
   const currentExpenseRow = useMemo(() => {
@@ -627,6 +666,68 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       onUpdateExpenseBill(expId, val);
     }
     setEditingBillId(null);
+  };
+
+  // Handlers for Expense Month Modal
+  const handleOpenEditExpenseMonth = (monthKey: string) => {
+    const row = allExpenseRows.find(r => r.monthKey === monthKey);
+    setEditingExpenseMonth(monthKey);
+    const bills: Record<string, number> = {};
+    expenses.forEach(e => {
+      bills[e.id] = row?.items[e.id] ?? getExpenseAmountForMonth(e, monthKey);
+    });
+    setEditExpenseBills(bills);
+    setEditExpenseAdhoc(row?.adhocTotal !== undefined ? row.adhocTotal.toString() : '0');
+    setEditExpenseEstimated(row?.estimatedTotal !== undefined ? row.estimatedTotal.toString() : '');
+  };
+
+  const handleSaveExpenseMonth = () => {
+    if (!editingExpenseMonth) return;
+    const adhocNum = parseFloat(editExpenseAdhoc);
+    const estNum = parseFloat(editExpenseEstimated);
+
+    if (onUpdateMonthExpenses) {
+      onUpdateMonthExpenses(
+        editingExpenseMonth,
+        editExpenseBills,
+        isNaN(estNum) ? undefined : estNum,
+        isNaN(adhocNum) ? 0 : adhocNum
+      );
+    } else {
+      Object.entries(editExpenseBills).forEach(([id, amt]) => {
+        onUpdateExpenseBill(id, amt, false, editingExpenseMonth);
+      });
+    }
+    setEditingExpenseMonth(null);
+  };
+
+  // Handlers for Inline Cell Editing in Expense Table
+  const handleStartCellEdit = (monthKey: string, field: string, initialVal: number) => {
+    setEditingExpenseCell({ monthKey, field });
+    setExpenseCellVal(initialVal > 0 ? initialVal.toString() : '');
+  };
+
+  const handleSaveCellEdit = () => {
+    if (!editingExpenseCell) return;
+    const { monthKey, field } = editingExpenseCell;
+    const val = parseFloat(expenseCellVal);
+    const num = isNaN(val) ? 0 : Math.max(0, val);
+
+    if (field === 'estimated') {
+      if (onUpdateMonthExpenses) {
+        const row = allExpenseRows.find(r => r.monthKey === monthKey);
+        onUpdateMonthExpenses(monthKey, row?.items || {}, num, row?.adhocTotal);
+      }
+    } else if (field === 'adhoc') {
+      if (onUpdateMonthExpenses) {
+        const row = allExpenseRows.find(r => r.monthKey === monthKey);
+        onUpdateMonthExpenses(monthKey, row?.items || {}, row?.estimatedTotal, num);
+      }
+    } else {
+      // field is expenseId
+      onUpdateExpenseBill(field, num, false, monthKey);
+    }
+    setEditingExpenseCell(null);
   };
 
   return (
@@ -1557,7 +1658,17 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                             }`}
                           >
                             <div className="flex flex-col items-end">
-                              <span>{formatSpreadsheetMonth(mKey)}</span>
+                              <div className="flex items-center gap-1">
+                                <span>{formatSpreadsheetMonth(mKey)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditExpenseMonth(mKey)}
+                                  className="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition"
+                                  title={`แก้ไขรายจ่ายรอบเดือน ${formatSpreadsheetMonth(mKey)}`}
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              </div>
                               {isCurrent && (
                                 <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-600 text-white font-bold mt-0.5 shadow-2xs">
                                   ปัจจุบัน
@@ -1613,6 +1724,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                             const val = isCurrent
                               ? (parseFloat(currentExpenseInputs[expense.id] ?? '') || getExpenseAmountForMonth(expense, currentMonthKey))
                               : (d?.items[expense.id] || 0);
+                            const isCellEditing = editingExpenseCell?.monthKey === mKey && editingExpenseCell?.field === expense.id;
 
                             return (
                               <td
@@ -1636,10 +1748,31 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                                       placeholder="0.00"
                                     />
                                   </div>
+                                ) : isCellEditing ? (
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    autoFocus
+                                    value={expenseCellVal}
+                                    onChange={e => setExpenseCellVal(e.target.value)}
+                                    onBlur={handleSaveCellEdit}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') handleSaveCellEdit();
+                                      if (e.key === 'Escape') setEditingExpenseCell(null);
+                                    }}
+                                    className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                  />
                                 ) : (
-                                  <span className={val > 0 ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-300 dark:text-slate-600'}>
-                                    {val > 0 ? formatCurrency(val, false) : '-'}
-                                  </span>
+                                  <div
+                                    onClick={() => handleStartCellEdit(mKey, expense.id, val)}
+                                    className="group cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 py-0.5 px-1 rounded flex items-center justify-end gap-1"
+                                    title="คลิกเพื่อแก้ไขตัวเลขบิลนี้"
+                                  >
+                                    <span className={val > 0 ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-300 dark:text-slate-600'}>
+                                      {val > 0 ? formatCurrency(val, false) : '-'}
+                                    </span>
+                                    <Edit2 className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
                                 )}
                               </td>
                             );
@@ -1669,9 +1802,33 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       {transposedMonths.map(mKey => {
                         const d = expenseByMonthMap[mKey];
                         const val = d?.adhocTotal || 0;
+                        const isEditingAdhoc = editingExpenseCell?.monthKey === mKey && editingExpenseCell?.field === 'adhoc';
                         return (
-                          <td key={mKey} className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 whitespace-nowrap">
-                            {val > 0 ? formatCurrency(val, false) : '-'}
+                          <td key={mKey} className="py-2 px-2.5 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 whitespace-nowrap">
+                            {isEditingAdhoc ? (
+                              <input
+                                type="number"
+                                step="any"
+                                autoFocus
+                                value={expenseCellVal}
+                                onChange={e => setExpenseCellVal(e.target.value)}
+                                onBlur={handleSaveCellEdit}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveCellEdit();
+                                  if (e.key === 'Escape') setEditingExpenseCell(null);
+                                }}
+                                className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                              />
+                            ) : (
+                              <div
+                                onClick={() => handleStartCellEdit(mKey, 'adhoc', val)}
+                                className="group cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 py-0.5 px-1 rounded flex items-center justify-end gap-1"
+                                title="คลิกเพื่อแก้ไขรายจ่ายย่อย/ถอน"
+                              >
+                                <span>{val > 0 ? formatCurrency(val, false) : '-'}</span>
+                                <Edit2 className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            )}
                           </td>
                         );
                       })}
@@ -1828,13 +1985,14 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
               {expenseTableViewMode === 'fit' ? (
                 <table className="w-full table-fixed text-left text-xs border-collapse">
                   <colgroup>
-                    <col className="w-[6%]" />
+                    <col className="w-[5%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
                     <col className="w-[14%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[12%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
                   </colgroup>
 
                   <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
@@ -1857,8 +2015,11 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-center">
                         สถานะบิล
                       </th>
-                      <th className="py-3 px-2 text-center">
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-center">
                         แจกแจงบิล
+                      </th>
+                      <th className="py-3 px-2 text-center">
+                        แก้ไข
                       </th>
                     </tr>
                   </thead>
@@ -1936,7 +2097,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                             </td>
 
                             {/* 7. แจกแจงบิล (Accordion toggle) */}
-                            <td className="py-2.5 px-2 text-center">
+                            <td className="py-2.5 px-2 text-center border-r border-slate-100 dark:border-slate-800">
                               <button
                                 onClick={() =>
                                   setExpandedMonthKey(prev => (prev === row.monthKey ? null : row.monthKey))
@@ -1951,21 +2112,42 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                                 )}
                               </button>
                             </td>
+
+                            {/* 8. แก้ไข */}
+                            <td className="py-2.5 px-2 text-center">
+                              <button
+                                onClick={() => handleOpenEditExpenseMonth(row.monthKey)}
+                                className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-400 text-[10px] font-bold inline-flex items-center gap-1 transition shadow-2xs"
+                                title="แก้ไขรายจ่ายรอบเดือนนี้"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>แก้ไข</span>
+                              </button>
+                            </td>
                           </tr>
 
                           {/* Expanded detail row showing every recurring bill for this month */}
                           {isExpanded && (
                             <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-                              <td colSpan={7} className="p-3 sm:p-4">
+                              <td colSpan={8} className="p-3 sm:p-4">
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                                     <span className="flex items-center gap-1.5">
                                       <Receipt className="w-4 h-4 text-emerald-600" />
                                       <span>รายละเอียดค่าใช้จ่ายประจำเดือน {row.monthLabel}</span>
                                     </span>
-                                    <span className="text-[11px] text-slate-500 font-normal">
-                                      รวม {expenses.length} รายการหลัก + รายจ่ายย่อย ({formatCurrency(row.adhocTotal)})
-                                    </span>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-[11px] text-slate-500 font-normal">
+                                        รวม {expenses.length} รายการหลัก + รายจ่ายย่อย ({formatCurrency(row.adhocTotal)})
+                                      </span>
+                                      <button
+                                        onClick={() => handleOpenEditExpenseMonth(row.monthKey)}
+                                        className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold inline-flex items-center gap-1"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                        แก้ไขข้อมูลรอบเดือนนี้
+                                      </button>
+                                    </div>
                                   </div>
 
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
@@ -2013,7 +2195,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       <td className="py-3 px-2 text-right text-rose-600 dark:text-rose-400 font-black truncate">
                         {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.actualTotal, 0))}
                       </td>
-                      <td colSpan={3} className="py-3 px-2 text-slate-500 text-right text-[11px]">
+                      <td colSpan={4} className="py-3 px-2 text-slate-500 text-right text-[11px]">
                         ยอดรวมงบประมาณการ vs จ่ายจริงสะสม
                       </td>
                     </tr>
@@ -2042,7 +2224,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       {expenses.map(e => (
                         <th
                           key={e.id}
-                          className="py-3 px-2 min-w-[90px] border-r border-slate-200 dark:border-slate-700 text-right whitespace-nowrap"
+                          className="py-3 px-2 min-w-[95px] border-r border-slate-200 dark:border-slate-700 text-right whitespace-nowrap"
                         >
                           <span className="mr-1">{e.icon}</span>
                           <span>{e.title}</span>
@@ -2051,8 +2233,11 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       <th className="py-3 px-2 w-20 border-r border-slate-200 dark:border-slate-700 text-right">
                         ย่อย/ถอน
                       </th>
-                      <th className="py-3 px-2 w-20 text-center">
+                      <th className="py-3 px-2 w-20 border-r border-slate-200 dark:border-slate-700 text-center">
                         สถานะ
+                      </th>
+                      <th className="py-3 px-2 w-16 text-center">
+                        แก้ไข
                       </th>
                     </tr>
                   </thead>
@@ -2071,12 +2256,41 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                           <td className="py-2.5 px-3 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
                             {row.monthLabel}
                           </td>
-                          <td className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-amber-800 dark:text-amber-300 bg-amber-50/20 whitespace-nowrap">
-                            {formatCurrency(row.estimatedTotal)}
+                          
+                          {/* ยอดประมาณการ (คลิกเพื่อแก้ไขตัวเลขได้ทันที) */}
+                          <td
+                            onClick={() => handleStartCellEdit(row.monthKey, 'estimated', row.estimatedTotal)}
+                            className="group relative py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-amber-800 dark:text-amber-300 bg-amber-50/20 whitespace-nowrap cursor-pointer hover:bg-amber-100/50 transition-colors"
+                            title="คลิกเพื่อแก้ไขยอดประมาณการของเดือนนี้"
+                          >
+                            {editingExpenseCell?.monthKey === row.monthKey && editingExpenseCell?.field === 'estimated' ? (
+                              <input
+                                type="number"
+                                step="any"
+                                autoFocus
+                                value={expenseCellVal}
+                                onChange={e => setExpenseCellVal(e.target.value)}
+                                onBlur={handleSaveCellEdit}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveCellEdit();
+                                  if (e.key === 'Escape') setEditingExpenseCell(null);
+                                }}
+                                className="w-24 px-1.5 py-0.5 text-xs text-right font-bold rounded border border-amber-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-end gap-1">
+                                <span>{formatCurrency(row.estimatedTotal)}</span>
+                                <Edit2 className="w-3 h-3 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            )}
                           </td>
+
+                          {/* จ่ายจริง */}
                           <td className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
                             {formatCurrency(row.actualTotal)}
                           </td>
+
+                          {/* ผลต่าง */}
                           <td
                             className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap ${
                               isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
@@ -2086,29 +2300,129 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                               ? `-${formatCurrency(Math.abs(row.difference), false)}`
                               : `+${formatCurrency(row.difference, false)}`}
                           </td>
+
+                          {/* Recurring Bills Columns (คลิกเพื่อแก้ไขตัวเลขบิลของเดือนนี้ได้) */}
                           {expenses.map(e => {
                             const val = row.items[e.id] ?? 0;
+                            const isEditing =
+                              editingExpenseCell?.monthKey === row.monthKey &&
+                              editingExpenseCell?.field === e.id;
                             return (
                               <td
                                 key={e.id}
-                                className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-800 dark:text-slate-200"
+                                onClick={() => !isEditing && handleStartCellEdit(row.monthKey, e.id, val)}
+                                className="group relative py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-800 dark:text-slate-200 cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 transition-colors"
+                                title="คลิกเพื่อแก้ไขตัวเลขบิลนี้"
                               >
-                                {val > 0 ? formatCurrency(val, false) : '-'}
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    autoFocus
+                                    value={expenseCellVal}
+                                    onChange={e => setExpenseCellVal(e.target.value)}
+                                    onBlur={handleSaveCellEdit}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') handleSaveCellEdit();
+                                      if (e.key === 'Escape') setEditingExpenseCell(null);
+                                    }}
+                                    className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>{val > 0 ? formatCurrency(val, false) : '-'}</span>
+                                    <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                )}
                               </td>
                             );
                           })}
-                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-600">
-                            {row.adhocTotal > 0 ? formatCurrency(row.adhocTotal, false) : '-'}
+
+                          {/* ย่อย / ถอน (คลิกเพื่อแก้ไขตัวเลขได้) */}
+                          <td
+                            onClick={() =>
+                              !(editingExpenseCell?.monthKey === row.monthKey && editingExpenseCell?.field === 'adhoc') &&
+                              handleStartCellEdit(row.monthKey, 'adhoc', row.adhocTotal)
+                            }
+                            className="group relative py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-600 cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors"
+                            title="คลิกเพื่อแก้ไขรายจ่ายย่อย/ถอนของเดือนนี้"
+                          >
+                            {editingExpenseCell?.monthKey === row.monthKey && editingExpenseCell?.field === 'adhoc' ? (
+                              <input
+                                type="number"
+                                step="any"
+                                autoFocus
+                                value={expenseCellVal}
+                                onChange={e => setExpenseCellVal(e.target.value)}
+                                onBlur={handleSaveCellEdit}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveCellEdit();
+                                  if (e.key === 'Escape') setEditingExpenseCell(null);
+                                }}
+                                className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-end gap-1">
+                                <span>{row.adhocTotal > 0 ? formatCurrency(row.adhocTotal, false) : '-'}</span>
+                                <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            )}
                           </td>
-                          <td className="py-2.5 px-2 text-center">
+
+                          {/* สถานะ */}
+                          <td className="py-2.5 px-2 text-center border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
                             <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600">
                               {row.paidCount}/{row.totalBills}
                             </span>
+                          </td>
+
+                          {/* แก้ไข */}
+                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => handleOpenEditExpenseMonth(row.monthKey)}
+                              className="px-2 py-1 text-slate-500 hover:text-indigo-600 transition rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 inline-flex items-center gap-1 text-[11px] font-semibold"
+                              title="แก้ไขยอดรายจ่ายทั้งหมดของเดือนนี้"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">แก้ไข</span>
+                            </button>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
+
+                  {/* Table Footer */}
+                  <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
+                    <tr>
+                      <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
+                        รวมทั้งหมด ({allExpenseRows.length} เดือน)
+                      </td>
+                      <td className="py-3 px-3 text-right text-amber-800 dark:text-amber-300 font-black truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.estimatedTotal, 0))}
+                      </td>
+                      <td className="py-3 px-3 text-right text-rose-600 dark:text-rose-400 font-black truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.actualTotal, 0))}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 dark:text-slate-300 font-bold truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.difference, 0))}
+                      </td>
+                      {expenses.map(e => {
+                        const sumBill = allExpenseRows.reduce((acc, r) => acc + (r.items[e.id] || 0), 0);
+                        return (
+                          <td key={e.id} className="py-3 px-2 text-right font-black border-r border-slate-200 dark:border-slate-700 truncate">
+                            {formatCurrency(sumBill, false)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-2 text-right font-black border-r border-slate-200 dark:border-slate-700 truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.adhocTotal, 0), false)}
+                      </td>
+                      <td colSpan={2} className="py-3 px-2 text-center text-slate-400">
+                        -
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               )}
 
@@ -2477,6 +2791,143 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm"
               >
                 บันทึกการเปลี่ยนแปลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: แก้ไขรายจ่ายรอบเดือน (Expense Month Edit Modal) */}
+      {editingExpenseMonth && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    แก้ไขรายจ่ายรอบเดือน {formatSpreadsheetMonth(editingExpenseMonth)}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ปรับปรุงยอดบิลแต่ละรายการ ยอดประมาณการ และรายจ่ายย่อยของเดือนนี้
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingExpenseMonth(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto pr-1 space-y-3 flex-1">
+              {/* ยอดประมาณการ */}
+              <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60">
+                <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
+                  🎯 ยอดงบประมาณการของเดือนนี้ (บาท)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editExpenseEstimated}
+                  onChange={e => setEditExpenseEstimated(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                  placeholder="เช่น 53200"
+                />
+              </div>
+
+              {/* รายการบิลประจำ */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  📋 รายการบิลประจำ ({expenses.length} รายการ)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {expenses.map(exp => (
+                    <div
+                      key={exp.id}
+                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40"
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <span>{exp.icon}</span>
+                        <span className="truncate">{exp.title}</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editExpenseBills[exp.id] ?? ''}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          setEditExpenseBills(prev => ({
+                            ...prev,
+                            [exp.id]: isNaN(val) ? 0 : val,
+                          }));
+                        }}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-right text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ย่อย / ถอนเงิน */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  🛒 รายจ่ายย่อย / ถอนเงิน (บาท)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editExpenseAdhoc}
+                  onChange={e => setEditExpenseAdhoc(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* Live Preview within modal */}
+              {(() => {
+                const bSum = Object.values(editExpenseBills).reduce((a, b) => a + (b || 0), 0);
+                const aNum = parseFloat(editExpenseAdhoc) || 0;
+                const totalAct = bSum + aNum;
+                const estNum = parseFloat(editExpenseEstimated) || 0;
+                const diff = estNum - totalAct;
+
+                return (
+                  <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-between font-bold">
+                    <div>
+                      <span className="text-slate-500">จ่ายจริงรวม: </span>
+                      <span className="text-rose-600 dark:text-rose-400">{formatCurrency(totalAct)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">ผลต่าง: </span>
+                      <span className={diff < 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                        {diff < 0 ? `-${formatCurrency(Math.abs(diff), false)}` : `+${formatCurrency(diff, false)}`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingExpenseMonth(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveExpenseMonth}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-sm inline-flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>บันทึกการเปลี่ยนแปลง</span>
               </button>
             </div>
           </div>

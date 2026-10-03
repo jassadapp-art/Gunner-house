@@ -573,34 +573,98 @@ export function App() {
   };
 
   // 8.1 Update Expense Bill (for variable recurring expenses e.g. electricity, water)
-  const handleUpdateExpenseBill = (expenseId: string, actualAmount: number, markAsPaid?: boolean) => {
+  const handleUpdateExpenseBill = (
+    expenseId: string,
+    actualAmount: number,
+    markAsPaid?: boolean,
+    targetMonthKey?: string
+  ) => {
     const currentMonthKey = getCurrentYearMonth();
+    const mKey = targetMonthKey || currentMonthKey;
+    const isCurrent = mKey === currentMonthKey;
+
     setExpenses(prev =>
       prev.map(e => {
         if (e.id === expenseId) {
           const updatedBills = {
             ...(e.monthlyBills || {}),
-            [currentMonthKey]: actualAmount,
+            [mKey]: actualAmount,
           };
-          const nextPaidState = markAsPaid !== undefined ? markAsPaid : e.isPaidThisMonth;
+          const nextPaidState =
+            isCurrent && markAsPaid !== undefined ? markAsPaid : e.isPaidThisMonth;
 
           if (markAsPaid) {
             showToast(`บันทึกบิล "${e.title}" ยอด ${formatCurrency(actualAmount)} และชำระเรียบร้อยแล้ว ✅`);
           } else {
-            showToast(`อัปเดตยอดบิลรอบเดือนนี้ของ "${e.title}" เป็น ${formatCurrency(actualAmount)} เรียบร้อย ⚡`);
+            showToast(`อัปเดตยอด "${e.title}" รอบ ${mKey} เป็น ${formatCurrency(actualAmount)} เรียบร้อย ⚡`);
           }
 
           return {
             ...e,
-            currentMonthAmount: actualAmount,
+            currentMonthAmount: isCurrent ? actualAmount : e.currentMonthAmount,
             monthlyBills: updatedBills,
             isPaidThisMonth: nextPaidState,
-            lastPaidMonth: nextPaidState ? currentMonthKey : e.lastPaidMonth,
+            lastPaidMonth: nextPaidState ? mKey : e.lastPaidMonth,
           };
         }
         return e;
       })
     );
+  };
+
+  // 8.1.1 Batch update expenses for a specific month
+  const handleUpdateMonthExpenses = (
+    monthKey: string,
+    billsMap: Record<string, number>,
+    estimatedAmount?: number,
+    adhocAmount?: number
+  ) => {
+    const currentMonthKey = getCurrentYearMonth();
+    const isCurrent = monthKey === currentMonthKey;
+
+    setExpenses(prev =>
+      prev.map(e => {
+        if (billsMap[e.id] !== undefined) {
+          const val = billsMap[e.id];
+          const updatedBills = {
+            ...(e.monthlyBills || {}),
+            [monthKey]: val,
+          };
+          return {
+            ...e,
+            currentMonthAmount: isCurrent ? val : e.currentMonthAmount,
+            monthlyBills: updatedBills,
+          };
+        }
+        return e;
+      })
+    );
+
+    if (estimatedAmount !== undefined || adhocAmount !== undefined) {
+      setSettings(prev => ({
+        ...prev,
+        monthlyExpenseOverrides: {
+          ...(prev.monthlyExpenseOverrides || {}),
+          [monthKey]: {
+            ...(prev.monthlyExpenseOverrides?.[monthKey] || {}),
+            ...(estimatedAmount !== undefined ? { estimated: estimatedAmount } : {}),
+            ...(adhocAmount !== undefined ? { adhoc: adhocAmount } : {}),
+          },
+        },
+      }));
+    }
+
+    showToast(`บันทึกรายจ่ายรอบเดือน ${monthKey} เรียบร้อยแล้ว ✅`);
+  };
+
+  // 8.1.2 Update Household Title and Subtitle directly
+  const handleUpdateHouseholdTitle = (name: string, subtitle?: string) => {
+    setSettings(prev => ({
+      ...prev,
+      householdName: name,
+      ...(subtitle !== undefined ? { householdSubtitle: subtitle } : {}),
+    }));
+    showToast('บันทึกชื่อบ้านเรียบร้อยแล้ว 🏡');
   };
 
   // 8.2 Force reset/clear all expenses for a new monthly cycle
@@ -771,6 +835,7 @@ export function App() {
         cloudStatus={cloudStatus}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}
+        onUpdateHouseholdTitle={handleUpdateHouseholdTitle}
       />
 
       {/* Main Content: 4 Pages */}
@@ -804,6 +869,7 @@ export function App() {
             }}
             onToggleExpensePaid={handleToggleExpensePaid}
             onUpdateExpenseBill={handleUpdateExpenseBill}
+            onUpdateMonthExpenses={handleUpdateMonthExpenses}
             onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
             onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
             onDeleteExpense={handleDeleteExpense}
