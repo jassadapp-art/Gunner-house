@@ -144,7 +144,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
 
     onSave({
-      id: editingTransaction?.id,
+      ...(editingTransaction?.id ? { id: editingTransaction.id } : {}),
       contributorId,
       date,
       amount: numAmount,

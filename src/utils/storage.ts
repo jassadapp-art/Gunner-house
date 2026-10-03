@@ -1,45 +1,45 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v11';
-const GOALS_KEY = 'household_savings_goals_v11';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v11';
-const EXPENSES_KEY = 'household_savings_expenses_v11';
+const SETTINGS_KEY = 'household_savings_settings_v12';
+const GOALS_KEY = 'household_savings_goals_v12';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v12';
+const EXPENSES_KEY = 'household_savings_expenses_v12';
 
 /**
  * Safe fallback reader:
- * First checks v11; if not found, checks older versions (v10, v9, etc.)
- * For transactions and goals: loads verified dataset matching user images (balance 157,359.89).
+ * First checks v12; if not found or empty, checks older versions (v11, v10, etc.)
+ * For transactions: guarantees that an empty/corrupted array is never loaded, restoring initial verified transactions.
  */
 const getWithFallback = (baseKey: string): string | null => {
   try {
-    const current = localStorage.getItem(`${baseKey}_v11`);
-    if (current) return current;
+    const current = localStorage.getItem(`${baseKey}_v12`);
+    if (current && current !== '[]') return current;
 
-    // For transactions: replace old savings data with verified dataset
+    // For transactions: replace old or cleared savings data with verified dataset
     if (baseKey === 'household_savings_transactions') {
-      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialTransactions));
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialTransactions));
       return JSON.stringify(initialTransactions);
     }
 
     // For goals: refresh emergency goal to 157,359.89
     if (baseKey === 'household_savings_goals') {
-      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialGoals));
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialGoals));
       return JSON.stringify(initialGoals);
     }
 
     // For settings: load verified monthlyIncomes matching Image 1 & 2
     if (baseKey === 'household_savings_settings') {
-      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialSettings));
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialSettings));
       return JSON.stringify(initialSettings);
     }
 
     // Check previous versions in descending order
-    for (const ver of ['v10', 'v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+    for (const ver of ['v11', 'v10', 'v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
       const prev = localStorage.getItem(`${baseKey}_${ver}`);
-      if (prev) {
-        // Automatically migrate forward to v11 so user data is preserved
-        localStorage.setItem(`${baseKey}_v11`, prev);
+      if (prev && prev !== '[]') {
+        // Automatically migrate forward to v12 so user data is preserved
+        localStorage.setItem(`${baseKey}_v12`, prev);
         return prev;
       }
     }
@@ -112,7 +112,24 @@ export const saveStoredGoals = (goals: SavingsGoal[]): void => {
 export const loadStoredTransactions = (): Transaction[] => {
   try {
     const saved = getWithFallback('household_savings_transactions');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: Transaction[] = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Guarantee every transaction has a unique, non-empty string id
+        const seenIds = new Set<string>();
+        return parsed.map((t, idx) => {
+          let id = t.id ? String(t.id).trim() : '';
+          if (!id || seenIds.has(id)) {
+            id = `tx-${t.date || 'item'}-${idx + 1}-${Math.random().toString(36).substring(2, 6)}`;
+          }
+          seenIds.add(id);
+          return {
+            ...t,
+            id,
+          };
+        });
+      }
+    }
   } catch (err) {
     console.error('Failed to load transactions from storage', err);
   }

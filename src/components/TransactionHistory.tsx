@@ -22,7 +22,7 @@ interface TransactionHistoryProps {
   goals: SavingsGoal[];
   settings: HouseholdSettings;
   onEditTransaction: (tx: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onDeleteTransaction: (id: string, tx?: Transaction) => void;
 }
 
 export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
@@ -423,7 +423,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => onDeleteTransaction(tx.id)}
+                          onClick={() => onDeleteTransaction(tx.id, tx)}
                           title="ลบรายการ"
                           className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition"
                         >

@@ -33,7 +33,7 @@ interface SavingsViewProps {
   onDeleteGoal: (goalId: string) => void;
   onOpenDepositForGoal: (goalId: string) => void;
   onEditTransaction: (tx: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onDeleteTransaction: (id: string, tx?: Transaction) => void;
 }
 
 interface PassbookRow {
@@ -114,8 +114,8 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       if (dateA !== dateB) return dateA - dateB;
 
       // Check numeric id if available (tx-passbook-1 vs tx-passbook-2)
-      const idA = parseInt(a.id.replace(/\D/g, ''), 10) || 0;
-      const idB = parseInt(b.id.replace(/\D/g, ''), 10) || 0;
+      const idA = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 0;
+      const idB = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 0;
       if (idA !== idB) return idA - idB;
 
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -598,7 +598,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
                       return (
                         <tr
-                          key={row.tx.id}
+                          key={row.tx.id || `row-${row.index}-${row.tx.date}`}
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
                         >
                           {/* 1. ลำดับ */}
@@ -671,7 +671,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => onDeleteTransaction(row.tx.id)}
+                                onClick={() => onDeleteTransaction(row.tx.id, row.tx)}
                                 className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition rounded"
                                 title="ลบรายการ"
                               >

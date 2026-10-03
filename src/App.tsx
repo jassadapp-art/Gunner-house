@@ -385,17 +385,19 @@ export function App() {
     const fundName = txData.targetFund === 'operating' ? 'กองหมุนเวียน' : 'กองระยะยาว';
     const isWithdrawal = txData.type === 'withdrawal';
 
-    if (txData.id) {
+    const { id: existingId, ...cleanTxData } = txData;
+
+    if (existingId) {
       // Update existing
       setTransactions(prev =>
-        prev.map(t => (t.id === txData.id ? { ...t, ...txData } : t))
+        prev.map(t => (t.id === existingId ? { ...t, ...cleanTxData, id: existingId } : t))
       );
       showToast(`อัปเดตรายการ${isWithdrawal ? 'ถอนเงิน' : 'เงินออม'}ของ ${memberName} สำเร็จ`);
     } else {
       // Create new
       const newTx: Transaction = {
-        id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        ...txData,
+        ...cleanTxData,
+        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         createdAt: new Date().toISOString(),
       };
       setTransactions(prev => [newTx, ...prev]);
@@ -485,9 +487,36 @@ export function App() {
   };
 
   // 3. Delete Transaction
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = (id: string, targetTx?: Transaction) => {
+    if (!id && !targetTx) {
+      showToast('⚠️ ไม่พบรหัสรายการที่ต้องการลบ');
+      return;
+    }
     if (confirm('ต้องการลบรายการเงินออมนี้หรือไม่?')) {
-      setTransactions(prev => prev.filter(t => t.id !== id));
+      setTransactions(prev => {
+        let deleted = false;
+        return prev.filter(t => {
+          if (deleted) return true; // Safeguard: only delete at most 1 item
+          // 1. Primary match by id
+          if (id && t.id && t.id === id) {
+            deleted = true;
+            return false;
+          }
+          // 2. Secondary fallback match by object reference or unique fields
+          if (targetTx && !deleted) {
+            const matches =
+              t.date === targetTx.date &&
+              t.amount === targetTx.amount &&
+              t.type === targetTx.type &&
+              (t.createdAt === targetTx.createdAt || t.note === targetTx.note);
+            if (matches) {
+              deleted = true;
+              return false;
+            }
+          }
+          return true;
+        });
+      });
       showToast('ลบรายการเรียบร้อย');
     }
   };

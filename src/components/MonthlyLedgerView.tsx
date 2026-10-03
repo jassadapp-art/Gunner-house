@@ -53,7 +53,7 @@ interface MonthlyLedgerViewProps {
   ) => void;
   onDeleteExpense: (expenseId: string) => void;
   onEditTransaction: (tx: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onDeleteTransaction: (id: string, tx?: Transaction) => void;
   onForceResetNewMonth: () => void;
 }
 
