@@ -629,7 +629,7 @@ export function App() {
   // 8.4 Update Monthly Income for a specific month (ตารางรายรับรายเดือน)
   const handleUpdateMonthlyIncome = (
     monthKey: string,
-    data: { person_a?: number; person_b?: number; other?: number; note?: string }
+    data: { person_a?: number; person_b?: number; other?: number; balance?: number; note?: string }
   ) => {
     setSettings(prev => ({
       ...prev,

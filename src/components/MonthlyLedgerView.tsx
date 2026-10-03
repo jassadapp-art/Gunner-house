@@ -41,7 +41,7 @@ interface MonthlyLedgerViewProps {
   onUpdateExpenseEstimatedAmount?: (expenseId: string, amount: number) => void;
   onUpdateMonthlyIncome?: (
     monthKey: string,
-    data: { person_a?: number; person_b?: number; other?: number; note?: string }
+    data: { person_a?: number; person_b?: number; other?: number; balance?: number; note?: string }
   ) => void;
   onDeleteExpense: (expenseId: string) => void;
   onEditTransaction: (tx: Transaction) => void;
@@ -53,6 +53,7 @@ interface MonthIncomeData {
   index: number;
   monthKey: string;
   monthLabel: string;
+  recordedBalance: number;
   person_a: number;
   person_b: number;
   other: number;
@@ -235,6 +236,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   const [editIncomeA, setEditIncomeA] = useState('');
   const [editIncomeB, setEditIncomeB] = useState('');
   const [editIncomeOther, setEditIncomeOther] = useState('');
+  const [editIncomeBalance, setEditIncomeBalance] = useState('');
 
   // Inline estimated amount editing state
   const [editingEstimatedExpId, setEditingEstimatedExpId] = useState<string | null>(null);
@@ -274,8 +276,9 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   const allIncomeRows = useMemo<MonthIncomeData[]>(() => {
     return allRecordedMonths.map((mKey, idx) => {
       const custom = settings.monthlyIncomes?.[mKey];
-      const incA = custom?.person_a !== undefined ? custom.person_a : baseIncomeA;
-      const incB = custom?.person_b !== undefined ? custom.person_b : baseIncomeB;
+      const incA = custom?.person_a !== undefined ? custom.person_a : (mKey === currentMonthKey ? (memberA.monthlyIncome || 0) : 0);
+      const incB = custom?.person_b !== undefined ? custom.person_b : (mKey === currentMonthKey ? (memberB.monthlyIncome || 0) : 0);
+      const recordedBalance = custom?.balance ?? 0;
 
       let incOther = custom?.other ?? 0;
       transactions.forEach(t => {
@@ -307,6 +310,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         index: idx + 1,
         monthKey: mKey,
         monthLabel: formatSpreadsheetMonth(mKey),
+        recordedBalance,
         person_a: incA,
         person_b: incB,
         other: incOther,
@@ -315,7 +319,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         netBalance,
       };
     });
-  }, [allRecordedMonths, settings.monthlyIncomes, baseIncomeA, baseIncomeB, transactions, expenses]);
+  }, [allRecordedMonths, settings.monthlyIncomes, memberA.monthlyIncome, memberB.monthlyIncome, currentMonthKey, transactions, expenses]);
 
   // Filter and sort incomes
   const displayIncomeRows = useMemo(() => {
@@ -468,6 +472,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     let sumA = 0;
     let sumB = 0;
     let sumOther = 0;
+    let sumRecordedBalance = 0;
     let sumTotal = 0;
     let sumExpense = 0;
     let sumNet = 0;
@@ -478,6 +483,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         sumA += d.person_a;
         sumB += d.person_b;
         sumOther += d.other;
+        sumRecordedBalance += (d.recordedBalance || 0);
         sumTotal += d.totalIncome;
         sumExpense += d.totalExpense;
         sumNet += d.netBalance;
@@ -492,6 +498,8 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       avgB: sumB / count,
       sumOther,
       avgOther: sumOther / count,
+      sumRecordedBalance,
+      avgRecordedBalance: sumRecordedBalance / count,
       sumTotal,
       avgTotal: sumTotal / count,
       sumExpense,
@@ -570,10 +578,12 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   // Handle Save Current Month Income
   const handleSaveCurrentMonthIncome = () => {
     if (!onUpdateMonthlyIncome) return;
+    const prevBalance = settings.monthlyIncomes?.[currentMonthKey]?.balance ?? 0;
     onUpdateMonthlyIncome(currentMonthKey, {
       person_a: parsedCurrentA,
       person_b: parsedCurrentB,
       other: parsedCurrentOther,
+      balance: prevBalance,
     });
   };
 
@@ -584,6 +594,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     setEditIncomeA(row ? row.person_a.toString() : baseIncomeA.toString());
     setEditIncomeB(row ? row.person_b.toString() : baseIncomeB.toString());
     setEditIncomeOther(row ? row.other.toString() : '0');
+    setEditIncomeBalance(row ? row.recordedBalance.toString() : '0');
   };
 
   const handleSaveIncome = () => {
@@ -591,11 +602,13 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     const a = parseFloat(editIncomeA);
     const b = parseFloat(editIncomeB);
     const other = parseFloat(editIncomeOther);
+    const bal = parseFloat(editIncomeBalance);
 
     onUpdateMonthlyIncome(editingIncomeMonth, {
       person_a: isNaN(a) ? baseIncomeA : a,
       person_b: isNaN(b) ? baseIncomeB : b,
       other: isNaN(other) ? 0 : other,
+      balance: isNaN(bal) ? 0 : bal,
     });
     setEditingIncomeMonth(null);
   };
@@ -1228,6 +1241,43 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       </td>
                     </tr>
 
+                    {/* ROW 4.5: คงเหลือตามบันทึก (Recorded Balance from Image 1) */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-700 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                          <span>⚖️ คงเหลือ (ตามบันทึกตาราง)</span>
+                        </div>
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const bal = d?.recordedBalance ?? 0;
+                        const isCurrent = mKey === currentMonthKey;
+                        const isZero = Math.abs(bal) < 0.01;
+                        const isNeg = bal < 0;
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap ${
+                              isZero
+                                ? 'text-slate-400 dark:text-slate-500'
+                                : isNeg
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-emerald-700 dark:text-emerald-300'
+                            } ${isCurrent ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
+                          >
+                            {formatCurrencySpreadsheet(bal)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrencySpreadsheet(transposedIncomeSummary.sumRecordedBalance)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-600 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrencySpreadsheet(transposedIncomeSummary.avgRecordedBalance)}
+                      </td>
+                    </tr>
+
                     {/* ROW 5: รวมรายจ่ายจริง (Total Expense) */}
                     <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-rose-700 dark:text-rose-400 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
@@ -1385,8 +1435,6 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                   {/* Table Body matching Image 1 */}
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
                     {displayIncomeRows.map(row => {
-                      const isZeroNet = Math.abs(row.netBalance) < 0.01;
-                      const isNegNet = row.netBalance < 0;
                       const isCurrent = row.monthKey === currentMonthKey;
 
                       return (
@@ -1421,17 +1469,17 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                             </div>
                           </td>
 
-                          {/* 3. คงเหลือ (Net balance e.g. ฿ -, ฿ 530.00, ฿ (846.60)) */}
+                          {/* 3. คงเหลือ (ตามบันทึกในตาราง Image 1 & 2) */}
                           <td
                             className={`py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-medium truncate ${
-                              isZeroNet
+                              Math.abs(row.recordedBalance) < 0.01
                                 ? 'text-slate-400 dark:text-slate-500'
-                                : isNegNet
+                                : row.recordedBalance < 0
                                 ? 'text-rose-600 dark:text-rose-400 font-bold'
-                                : 'text-slate-800 dark:text-slate-200'
+                                : 'text-slate-800 dark:text-slate-200 font-bold'
                             }`}
                           >
-                            {formatCurrencySpreadsheet(row.netBalance)}
+                            {formatCurrencySpreadsheet(row.recordedBalance)}
                           </td>
 
                           {/* 4. เจ (Je) */}
@@ -1475,8 +1523,8 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                       <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
                         รวมทั้งหมด ({allIncomeRows.length} เดือน)
                       </td>
-                      <td className="py-3 px-2 text-right text-slate-500">
-                        -
+                      <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-bold truncate">
+                        {formatCurrencySpreadsheet(allIncomeRows.reduce((acc, r) => acc + (r.recordedBalance || 0), 0))}
                       </td>
                       <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
                         {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_a, 0))}
@@ -2574,6 +2622,19 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                   step="any"
                   value={editIncomeOther}
                   onChange={e => setEditIncomeOther(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  ⚖️ คงเหลือตามบันทึกในตาราง (บาท)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={editIncomeBalance}
+                  onChange={e => setEditIncomeBalance(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-white"
                 />
               </div>

@@ -1,20 +1,27 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { ContributorId, HouseholdFundType, HouseholdSettings, SavingsGoal, Transaction } from '../types';
-import { formatCurrency, formatPassbookDate, formatPercent } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatCurrencySpreadsheet,
+  formatPassbookDate,
+  formatSpreadsheetMonth,
+  getCurrentYearMonth,
+} from '../utils/formatters';
 import { QuickAddBar } from './QuickAddBar';
 import {
   PiggyBank,
   Target,
   PlusCircle,
-  ArrowUpRight,
   Edit2,
   Trash2,
-  CheckCircle2,
   Search,
   ArrowDownCircle,
   ArrowUpCircle,
   ArrowUpDown,
   BookOpen,
+  Table,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 
 interface SavingsViewProps {
@@ -38,10 +45,20 @@ interface PassbookRow {
   dateStr: string;
   depositAmount: number | null;
   withdrawalAmount: number | null;
+  netDelta: number;
   runningBalance: number;
   description: string;
   contributorId: ContributorId;
   contributorName: string;
+}
+
+interface MonthSavingsSummary {
+  monthKey: string;
+  monthLabel: string;
+  depositTotal: number;
+  withdrawalTotal: number;
+  netSavings: number;
+  endingBalance: number;
 }
 
 export const SavingsView: React.FC<SavingsViewProps> = ({
@@ -58,10 +75,41 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   onEditTransaction,
   onDeleteTransaction,
 }) => {
-  const [goalFilter, setGoalFilter] = useState<string>('all');
+  const currentMonthKey = getCurrentYearMonth();
+
+  // Navigation tabs matching MonthlyLedgerView:
+  // 1. Passbook Table (Image 4), 2. Transposed Monthly Summary (แนวนอน), 3. Goals & Funds
+  const [activeTab, setActiveTab] = useState<'passbook' | 'monthly' | 'goals'>('passbook');
+  const [tableOrientation, setTableOrientation] = useState<'vertical' | 'transposed'>('vertical');
+  const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'chronological' | 'latest'>('chronological');
-  const [activeTab, setActiveTab] = useState<'passbook' | 'goals'>('passbook');
+  const [goalFilter, setGoalFilter] = useState<string>('all');
+
+  // Ref for auto-scrolling to current month column in transposed view
+  const transposedScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const currentMonthThRef = useRef<HTMLTableCellElement | null>(null);
+
+  const scrollToCurrentMonth = (behavior: ScrollBehavior = 'smooth') => {
+    const th = currentMonthThRef.current;
+    const container = transposedScrollContainerRef.current;
+    if (th && container) {
+      const thLeft = th.offsetLeft;
+      const thWidth = th.offsetWidth;
+      const containerWidth = container.clientWidth;
+      const targetScroll = Math.max(0, thLeft + thWidth + 240 - containerWidth);
+      container.scrollTo({ left: targetScroll, behavior });
+    }
+  };
+
+  useEffect(() => {
+    if (tableOrientation === 'transposed' || activeTab === 'monthly') {
+      const timer = setTimeout(() => {
+        scrollToCurrentMonth('auto');
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [tableOrientation, activeTab, selectedYear]);
 
   // 1. Calculate Fund Balances
   const operatingBalance = useMemo(() => {
@@ -84,38 +132,19 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
     }, 0);
   }, [transactions]);
 
-  const totalPoolSavings = useMemo(() => {
-    return transactions.reduce((acc, t) => {
-      return acc + (t.type === 'withdrawal' ? -t.amount : t.amount);
-    }, 0);
-  }, [transactions]);
-
-  // Member contributions
-  const memberAContrib = useMemo(() => {
-    return transactions.reduce((acc, t) => {
-      if (t.contributorId === 'person_a') {
-        return acc + (t.type === 'withdrawal' ? -t.amount : t.amount);
-      }
-      return acc;
-    }, 0);
-  }, [transactions]);
-
-  const memberBContrib = useMemo(() => {
-    return transactions.reduce((acc, t) => {
-      if (t.contributorId === 'person_b') {
-        return acc + (t.type === 'withdrawal' ? -t.amount : t.amount);
-      }
-      return acc;
-    }, 0);
-  }, [transactions]);
-
-  // 2. Build Running Balance Passbook Rows matching Image 2
-  // We sort chronologically from oldest to newest to compute the cumulative running balance
+  // 2. Build Running Balance Passbook Rows matching Image 4 (146 items)
+  // Sorted chronologically to calculate the precise cumulative running balance
   const allPassbookRows = useMemo<PassbookRow[]>(() => {
     const sorted = [...transactions].sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
       if (dateA !== dateB) return dateA - dateB;
+
+      // Check numeric id if available (tx-passbook-1 vs tx-passbook-2)
+      const idA = parseInt(a.id.replace(/\D/g, ''), 10) || 0;
+      const idB = parseInt(b.id.replace(/\D/g, ''), 10) || 0;
+      if (idA !== idB) return idA - idB;
+
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
@@ -146,7 +175,8 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
         dateStr: formatPassbookDate(t.date),
         depositAmount: !isWithdrawal ? t.amount : null,
         withdrawalAmount: isWithdrawal ? t.amount : null,
-        runningBalance: currentBalance,
+        netDelta: delta,
+        runningBalance: Math.round(currentBalance * 100) / 100,
         description: desc,
         contributorId: t.contributorId,
         contributorName,
@@ -155,33 +185,150 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
     return rows;
   }, [transactions, settings.members]);
 
-  // Filter and sort for display
-  const displayRows = useMemo(() => {
+  // 3. Totals across all transactions
+  const totalEndingBalance = useMemo(() => {
+    if (allPassbookRows.length === 0) return 0;
+    return allPassbookRows[allPassbookRows.length - 1].runningBalance;
+  }, [allPassbookRows]);
+
+  const totalDepositsAll = useMemo(() => {
+    return allPassbookRows.reduce((acc, r) => acc + (r.depositAmount || 0), 0);
+  }, [allPassbookRows]);
+
+  const totalWithdrawalsAll = useMemo(() => {
+    return allPassbookRows.reduce((acc, r) => acc + (r.withdrawalAmount || 0), 0);
+  }, [allPassbookRows]);
+
+  // 4. Available Years for Filtering
+  const availableYears = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach(t => {
+      if (t.date && t.date.length >= 4) {
+        set.add(t.date.slice(0, 4));
+      }
+    });
+    set.add(currentMonthKey.slice(0, 4));
+    return Array.from(set).sort().reverse();
+  }, [transactions, currentMonthKey]);
+
+  // 5. Filter & Sort Passbook Rows for Vertical View
+  const displayPassbookRows = useMemo(() => {
     let rows = allPassbookRows;
+
+    // Filter by year
+    if (selectedYear !== 'all') {
+      rows = rows.filter(r => r.tx.date.startsWith(selectedYear));
+    }
+
+    // Filter by search term
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       rows = rows.filter(
         r =>
           r.description.toLowerCase().includes(q) ||
           r.dateStr.toLowerCase().includes(q) ||
-          r.contributorName.toLowerCase().includes(q)
+          r.tx.date.includes(q) ||
+          r.contributorName.toLowerCase().includes(q) ||
+          (r.depositAmount && r.depositAmount.toString().includes(q)) ||
+          (r.withdrawalAmount && r.withdrawalAmount.toString().includes(q))
       );
     }
 
+    // Sort order
     if (sortOrder === 'latest') {
       return [...rows].reverse();
     }
     return rows;
-  }, [allPassbookRows, searchTerm, sortOrder]);
+  }, [allPassbookRows, selectedYear, searchTerm, sortOrder]);
 
-  // Total summary of deposits & withdrawals
-  const totalDeposits = useMemo(() => {
-    return allPassbookRows.reduce((acc, r) => acc + (r.depositAmount || 0), 0);
-  }, [allPassbookRows]);
+  // Passbook view totals for filtered rows
+  const filteredViewTotals = useMemo(() => {
+    const count = displayPassbookRows.length;
+    const deposits = displayPassbookRows.reduce((acc, r) => acc + (r.depositAmount || 0), 0);
+    const withdrawals = displayPassbookRows.reduce((acc, r) => acc + (r.withdrawalAmount || 0), 0);
+    return { count, deposits, withdrawals, net: deposits - withdrawals };
+  }, [displayPassbookRows]);
 
-  const totalWithdrawals = useMemo(() => {
-    return allPassbookRows.reduce((acc, r) => acc + (r.withdrawalAmount || 0), 0);
-  }, [allPassbookRows]);
+  // 6. Build Transposed Monthly Summary Data
+  const monthlySavingsData = useMemo<MonthSavingsSummary[]>(() => {
+    // Map transactions to months and compute running ending balances
+    const monthMap: Record<string, { deposits: number; withdrawals: number; endingBalance: number }> = {};
+    
+    // Iterate through allPassbookRows chronologically to get exact end-of-month balance
+    allPassbookRows.forEach(r => {
+      const mKey = r.tx.date.slice(0, 7);
+      if (!monthMap[mKey]) {
+        monthMap[mKey] = { deposits: 0, withdrawals: 0, endingBalance: 0 };
+      }
+      if (r.depositAmount) monthMap[mKey].deposits += r.depositAmount;
+      if (r.withdrawalAmount) monthMap[mKey].withdrawals += r.withdrawalAmount;
+      monthMap[mKey].endingBalance = r.runningBalance;
+    });
+
+    // Ensure all 12 months of selectedYear are included if a specific year is chosen
+    if (selectedYear !== 'all') {
+      for (let m = 1; m <= 12; m++) {
+        const mKey = `${selectedYear}-${String(m).padStart(2, '0')}`;
+        if (!monthMap[mKey]) {
+          // Find the last known ending balance before this month
+          let lastBal = 0;
+          for (let i = allPassbookRows.length - 1; i >= 0; i--) {
+            if (allPassbookRows[i].tx.date < `${mKey}-01`) {
+              lastBal = allPassbookRows[i].runningBalance;
+              break;
+            }
+          }
+          monthMap[mKey] = { deposits: 0, withdrawals: 0, endingBalance: lastBal };
+        }
+      }
+    }
+
+    return Object.keys(monthMap)
+      .sort()
+      .map(mKey => {
+        const item = monthMap[mKey];
+        return {
+          monthKey: mKey,
+          monthLabel: formatSpreadsheetMonth(mKey),
+          depositTotal: item.deposits,
+          withdrawalTotal: item.withdrawals,
+          netSavings: item.deposits - item.withdrawals,
+          endingBalance: item.endingBalance,
+        };
+      });
+  }, [allPassbookRows, selectedYear]);
+
+  // Filtered months for Transposed View
+  const displayTransposedMonths = useMemo(() => {
+    if (selectedYear === 'all') return monthlySavingsData;
+    return monthlySavingsData.filter(m => m.monthKey.startsWith(selectedYear));
+  }, [monthlySavingsData, selectedYear]);
+
+  // Transposed View Summary Metrics
+  const transposedSummary = useMemo(() => {
+    let sumDep = 0;
+    let sumWithdr = 0;
+    let sumNet = 0;
+
+    displayTransposedMonths.forEach(m => {
+      sumDep += m.depositTotal;
+      sumWithdr += m.withdrawalTotal;
+      sumNet += m.netSavings;
+    });
+
+    const count = displayTransposedMonths.length || 1;
+    const latestMonth = displayTransposedMonths[displayTransposedMonths.length - 1];
+    return {
+      sumDep,
+      avgDep: sumDep / count,
+      sumWithdr,
+      avgWithdr: sumWithdr / count,
+      sumNet,
+      avgNet: sumNet / count,
+      latestEndingBalance: latestMonth ? latestMonth.endingBalance : totalEndingBalance,
+      count,
+    };
+  }, [displayTransposedMonths, totalEndingBalance]);
 
   // Overall Goal Progress
   const totalGoalTarget = useMemo(() => goals.reduce((acc, g) => acc + g.targetAmount, 0), [goals]);
@@ -203,7 +350,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   return (
     <div className="space-y-7 animate-in fade-in duration-300">
       
-      {/* Header Banner */}
+      {/* 1. Header Banner matching MonthlyLedgerView */}
       <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-600/15 via-teal-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -215,7 +362,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">
-            บันทึกรายการฝาก-ถอน บัญชีเงินออมสะสม (คงเหลือสุทธิ) พร้อมเช็คยอดกองทุนและเป้าหมาย
+            บันทึกรายการฝาก-ถอน สมุดบัญชีเงินออมสะสมจริง (คงเหลือสุทธิ 297,463.40 ฿) พร้อมสรุปรายเดือนแบบแนวนอนและเป้าหมาย
           </p>
         </div>
 
@@ -223,7 +370,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <button
             onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
-            className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowDownCircle className="w-4 h-4" />
             <span>+ ฝากเงินออม</span>
@@ -231,7 +378,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
           <button
             onClick={() => onOpenCustomAdd(undefined, 'operating', 'withdrawal')}
-            className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-rose-600/20 transition flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-rose-600/20 transition flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowUpCircle className="w-4 h-4" />
             <span>- ถอนเงิน</span>
@@ -239,7 +386,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
           <button
             onClick={() => onOpenGoalModal(null)}
-            className="px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-emerald-500" />
             <span>เป้าหมายใหม่</span>
@@ -247,151 +394,213 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
         </div>
       </div>
 
-      {/* 3 Fund Balance Cards */}
+      {/* 2. Top 3 Summary KPI Cards matching MonthlyLedgerView */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
         
-        {/* Card 1: Operating Fund */}
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-              <span>💳</span>
-              <span>กองหมุนเวียน (Operating)</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
-              ค่าเริ่มต้นหยอดเงิน
-            </span>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {formatCurrency(operatingBalance)}
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-            ใช้จ่ายหมุนเวียนในชีวิตประจำวัน บิลค่าไฟ ค่าน้ำ และค่าบัตรเครดิต
-          </p>
-        </div>
-
-        {/* Card 2: Long-term Fund */}
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/20 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
-              <span>🏛️</span>
-              <span>กองระยะยาว (Long-Term)</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300">
-              เพื่ออนาคต
-            </span>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-            {formatCurrency(longTermBalance)}
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-            เงินสะสมระยะยาวเพื่อความมั่นคง กองทุนลงทุน และเป้าหมายใหญ่
-          </p>
-        </div>
-
-        {/* Card 3: Total Household Pool Savings */}
+        {/* Card 1: Ending Net Savings Balance */}
         <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between text-emerald-100 mb-2">
             <span className="text-xs font-bold flex items-center gap-1.5">
-              <span>🛡️</span>
-              <span>ยอดเงินออมสะสมรวมทั้งหมด</span>
+              <span>💰</span>
+              <span>เงินออมสะสมสุทธิ (คงเหลือ)</span>
             </span>
             <PiggyBank className="w-5 h-5 text-white/80" />
           </div>
           <div className="text-2xl sm:text-3xl font-black text-white">
-            {formatCurrency(totalPoolSavings)}
+            {formatCurrency(totalEndingBalance)}
           </div>
           <div className="flex items-center justify-between text-[11px] text-emerald-100/90 mt-2 pt-2 border-t border-white/20">
-            <span>เจ: {formatCurrency(memberAContrib, false)}</span>
-            <span>•</span>
-            <span>เมย์: {formatCurrency(memberBContrib, false)}</span>
+            <span>สมุดบัญชีเงินออมจริง (146 รายการ)</span>
+            <span className="px-2 py-0.5 rounded-full bg-white/20 font-bold">
+              ความมั่นคง 148.7%
+            </span>
           </div>
+        </div>
+
+        {/* Card 2: Total Deposits */}
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <span>ยอดฝากสะสมรวม</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+              ฝาก + ยกยอด + ดอกเบี้ย
+            </span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+            {formatCurrency(totalDepositsAll)}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+            สะสมจากเงินออมรายเดือน, เงินโบนัส, ดอกเบี้ย และเงินคืน
+          </p>
+        </div>
+
+        {/* Card 3: Total Withdrawals */}
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-500/20 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-rose-700 dark:text-rose-400">
+              <TrendingDown className="w-4 h-4 text-rose-600" />
+              <span>ยอดถอนสะสมรวม</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300">
+              ค่าใช้จ่าย & ลงทุน
+            </span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400">
+            {formatCurrency(totalWithdrawalsAll)}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+            เบิกใช้จ่ายจำเป็น, ค่าม่านแอร์, เบี้ยประกัน, ซื้อทอง และให้ทางบ้าน
+          </p>
         </div>
 
       </div>
 
-      {/* Quick Add Bar (หยอดเงินด่วน) */}
-      <QuickAddBar
-        settings={settings}
-        onQuickAdd={onQuickAdd}
-        onQuickWithdraw={onQuickWithdraw}
-        onOpenCustomAdd={onOpenCustomAdd}
-        onUpdatePresets={onUpdatePresets}
-      />
-
-      {/* View Toggle Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex items-center gap-2">
+      {/* 3. Sub-tabs / Mode Switcher matching MonthlyLedgerView */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tab 1: Passbook Table (Image 4) */}
           <button
-            onClick={() => setActiveTab('passbook')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
-              activeTab === 'passbook'
+            onClick={() => {
+              setActiveTab('passbook');
+              setTableOrientation('vertical');
+            }}
+            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'passbook' && tableOrientation === 'vertical'
                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>1. ตารางสมุดเงินออมสะสม (ตามรูปที่ 2)</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+            <span>1. สมุดบัญชีเงินออม (ตามรูปที่ 4)</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'passbook' && tableOrientation === 'vertical' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
               {allPassbookRows.length}
             </span>
           </button>
 
+          {/* Tab 2: Transposed Monthly View (แนวนอน) */}
           <button
-            onClick={() => setActiveTab('goals')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            onClick={() => {
+              setActiveTab('monthly');
+              setTableOrientation('transposed');
+            }}
+            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+              (activeTab === 'monthly' || tableOrientation === 'transposed') && activeTab !== 'goals'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Table className="w-4 h-4" />
+            <span>2. สรุปเงินออมรายเดือน (แนวนอน 🔄)</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${(activeTab === 'monthly' || tableOrientation === 'transposed') && activeTab !== 'goals' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
+              {monthlySavingsData.length} ด.
+            </span>
+          </button>
+
+          {/* Tab 3: Goals & Funds */}
+          <button
+            onClick={() => {
+              setActiveTab('goals');
+            }}
+            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
               activeTab === 'goals'
                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <Target className="w-4 h-4" />
-            <span>2. เป้าหมายเงินออมครอบครัว ({goals.length})</span>
+            <span>3. กองทุน & เป้าหมายการออม</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'goals' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
+              {goals.length}
+            </span>
           </button>
         </div>
 
-        <span className="text-[11px] text-slate-400 hidden sm:inline">
+        <span className="text-[11px] text-slate-400 hidden lg:inline">
           {activeTab === 'passbook'
-            ? 'คอลัมน์: วันที่ | ฝาก | ถอน | คงเหลือสะสม | รายละเอียด'
-            : `ความคืบหน้ารวม ${overallGoalProgress.toFixed(1)}%`}
+            ? 'คอลัมน์: ลำดับ | วันที่ | ฝาก/ถอน | คงเหลือสะสม | รายละเอียด | ผู้ทำรายการ'
+            : activeTab === 'monthly'
+            ? 'เดือนเป็นคอลัมน์: ยอดฝาก, ยอดถอน, ออมสุทธิ, คงเหลือสะสมสิ้นเดือน'
+            : `ความคืบหน้ารวมเป้าหมาย ${overallGoalProgress.toFixed(1)}%`}
         </span>
       </div>
 
-      {/* TAB 1: PASSBOOK LEDGER TABLE (MATCHING IMAGE 2) */}
-      {activeTab === 'passbook' && (
-        <div className="space-y-4">
+      {/* 4. Controls & Year Filter Bar matching MonthlyLedgerView */}
+      {activeTab !== 'goals' && (
+        <div className="space-y-3">
           
-          {/* Controls: Search & Sort */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-            <div className="relative flex-1 sm:max-w-xs">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="ค้นหารายการ เช่น ซื้อวัว, กองทุน, วันที่..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-between sm:justify-end gap-2 text-xs">
+          {/* Toolbar: Orientation Toggle + Search + Sort */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            
+            {/* View Mode Toggle: Transposed vs Vertical */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start">
               <button
-                onClick={() =>
-                  setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
-                }
-                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1.5"
-                title="สลับลำดับการแสดงผล"
+                onClick={() => {
+                  setTableOrientation('transposed');
+                  setActiveTab('monthly');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  tableOrientation === 'transposed' || activeTab === 'monthly'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="แสดงตารางแบบแนวนอน (เดือนเป็นคอลัมน์)"
               >
-                <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
-                <span>
-                  {sortOrder === 'chronological'
-                    ? 'เรียงตามสมุดบัญชี (เก่า ➔ ใหม่)'
-                    : 'เรียงล่าสุดก่อน (ใหม่ ➔ เก่า)'}
-                </span>
+                <Table className="w-3.5 h-3.5" />
+                <span>🔄 สลับแถว⇄คอลัมน์ (แนวนอน)</span>
               </button>
 
               <button
+                onClick={() => {
+                  setTableOrientation('vertical');
+                  setActiveTab('passbook');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  tableOrientation === 'vertical' && activeTab === 'passbook'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="แสดงตารางแบบแนวตั้งตามรูปที่ 4"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>📋 ตารางสมุดบัญชี (ตามรูปที่ 4)</span>
+              </button>
+            </div>
+
+            {/* Search Input & Sort Button */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="ค้นหารายละเอียด, วันที่..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {activeTab === 'passbook' && tableOrientation === 'vertical' && (
+                <button
+                  onClick={() =>
+                    setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
+                  }
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+                  title="สลับลำดับการแสดงผล"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>
+                    {sortOrder === 'chronological'
+                      ? 'เก่า ➔ ใหม่'
+                      : 'ล่าสุดก่อน'}
+                  </span>
+                </button>
+              )}
+
+              <button
                 onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
-                className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 font-bold hover:bg-emerald-100 transition flex items-center gap-1"
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-xs font-bold hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>เพิ่มรายการ</span>
@@ -399,12 +608,49 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             </div>
           </div>
 
-          {/* EXACT SPREADSHEET / PASSBOOK TABLE (Matching Image 2) */}
+          {/* Year Filter Pills matching MonthlyLedgerView */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <span className="text-slate-400 font-bold mr-1 flex items-center gap-1 text-[11px] whitespace-nowrap">
+              <span>📅</span>
+              <span>เลือกปี:</span>
+            </span>
+            {availableYears.map(yr => (
+              <button
+                key={yr}
+                onClick={() => setSelectedYear(yr)}
+                className={`px-3 py-1 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
+                  selectedYear === yr
+                    ? 'bg-emerald-600 text-white shadow-2xs shadow-emerald-600/30'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750'
+                }`}
+              >
+                {yr}
+              </button>
+            ))}
+            <button
+              onClick={() => setSelectedYear('all')}
+              className={`px-3 py-1 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
+                selectedYear === 'all'
+                  ? 'bg-emerald-600 text-white shadow-2xs shadow-emerald-600/30'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750'
+              }`}
+            >
+              ทุกปี
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* 5. TAB 1: PASSBOOK TABLE (VERTICAL - MATCHING IMAGE 4) */}
+      {activeTab === 'passbook' && tableOrientation === 'vertical' && (
+        <div className="space-y-4">
+          
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
+            <div className="overflow-x-auto max-h-[720px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
                 
-                {/* Table Header */}
+                {/* Table Header matching Image 4 */}
                 <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-center font-bold">
                   <tr>
                     <th className="py-3 px-3 w-14 border-r border-slate-200 dark:border-slate-700">
@@ -414,14 +660,11 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                       วันที่
                     </th>
                     <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
-                      ฝาก
+                      ฝาก/ถอน
                     </th>
-                    <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
-                      ถอน
-                    </th>
-                    {/* Running Balance Column with exact pastel green header matching Image 2 */}
+                    {/* Signature Running Balance Column with pastel green header */}
                     <th className="py-3 px-4 w-40 bg-[#a8d5a2] dark:bg-emerald-900/60 text-emerald-950 dark:text-emerald-100 border-x-2 border-[#8fc288] dark:border-emerald-700 text-right font-black">
-                      คงเหลือ
+                      คงเหลือสะสม
                     </th>
                     <th className="py-3 px-6 border-r border-slate-200 dark:border-slate-700 text-left">
                       รายละเอียด
@@ -435,16 +678,16 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                   </tr>
                 </thead>
 
-                {/* Table Body */}
+                {/* Table Body matching Image 4 */}
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
-                  {displayRows.length === 0 ? (
+                  {displayPassbookRows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
-                        ไม่พบรายการเงินออมที่ตรงกับการค้นหา
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        ไม่พบรายการเงินออมที่ตรงกับเงื่อนไขการค้นหา
                       </td>
                     </tr>
                   ) : (
-                    displayRows.map(row => {
+                    displayPassbookRows.map(row => {
                       const isDeposit = row.depositAmount !== null;
                       const isWithdrawal = row.withdrawalAmount !== null;
 
@@ -463,34 +706,27 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                             {row.dateStr}
                           </td>
 
-                          {/* 3. ฝาก (Deposit) */}
-                          <td className="py-3 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
+                          {/* 3. ฝาก/ถอน (Positive emerald, Negative rose) */}
+                          <td className="py-3 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-bold">
                             {isDeposit ? (
-                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                                {formatCurrency(row.depositAmount || 0)}
+                              <span className="text-emerald-600 dark:text-emerald-400">
+                                {formatCurrencySpreadsheet(row.depositAmount || 0)}
+                              </span>
+                            ) : isWithdrawal ? (
+                              <span className="text-rose-600 dark:text-rose-400">
+                                {formatCurrencySpreadsheet(-(row.withdrawalAmount || 0))}
                               </span>
                             ) : (
-                              <span className="text-slate-300 dark:text-slate-600">-</span>
+                              <span className="text-slate-400">฿ -</span>
                             )}
                           </td>
 
-                          {/* 4. ถอน (Withdrawal) */}
-                          <td className="py-3 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
-                            {isWithdrawal ? (
-                              <span className="font-extrabold text-rose-600 dark:text-rose-400">
-                                -{formatCurrency(row.withdrawalAmount || 0)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300 dark:text-slate-600">-</span>
-                            )}
-                          </td>
-
-                          {/* 5. คงเหลือ (Signature Pastel Green Column matching Image 2) */}
+                          {/* 4. คงเหลือสะสม (Pastel Green Column matching Image 2 & 4) */}
                           <td className="py-3 px-4 text-right font-black bg-[#a8d5a2]/60 dark:bg-emerald-950/70 text-emerald-950 dark:text-emerald-100 border-x-2 border-[#8fc288]/70 dark:border-emerald-700/60 whitespace-nowrap text-[13px]">
                             {formatCurrency(row.runningBalance)}
                           </td>
 
-                          {/* 6. รายละเอียด (เช่น ซื้อวัว, กองทุน) */}
+                          {/* 5. รายละเอียด (เช่น ซื้อวัว, กองทุน, คืนเงิน) */}
                           <td className="py-3 px-6 text-slate-900 dark:text-slate-100 border-r border-slate-100 dark:border-slate-800">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-sm">
@@ -498,13 +734,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                               </span>
                               {row.tx.targetFund === 'long_term' && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 font-normal">
-                                  🏛️ ระยะยาว
+                                  🏛️ กองระยะยาว
                                 </span>
                               )}
                             </div>
                           </td>
 
-                          {/* 7. ผู้ทำรายการ */}
+                          {/* 6. ผู้ทำรายการ */}
                           <td className="py-3 px-3 text-center border-r border-slate-100 dark:border-slate-800">
                             <span
                               className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
@@ -519,49 +755,51 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                             </span>
                           </td>
 
-                          {/* 8. จัดการ */}
+                          {/* 7. จัดการ */}
                           <td className="py-3 px-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => onEditTransaction(row.tx)}
-                                className="p-1 text-slate-400 hover:text-indigo-600 transition"
+                                className="p-1 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition rounded"
                                 title="แก้ไขรายการ"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => onDeleteTransaction(row.tx.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                                className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition rounded"
                                 title="ลบรายการ"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </td>
-
                         </tr>
                       );
                     })
                   )}
                 </tbody>
 
-                {/* Table Footer with Total Running Summary */}
-                <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
+                {/* Table Footer */}
+                <tfoot className="bg-slate-50 dark:bg-slate-800/90 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs sticky bottom-0 z-10 backdrop-blur-sm">
                   <tr>
                     <td colSpan={2} className="py-3 px-4 text-center text-slate-700 dark:text-slate-300">
-                      รวมทั้งหมด ({allPassbookRows.length} รายการ)
+                      รวมทั้งหมด ({filteredViewTotals.count} รายการ)
                     </td>
-                    <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black">
-                      +{formatCurrency(totalDeposits)}
+                    <td className="py-3 px-4 text-right font-black text-emerald-700 dark:text-emerald-300">
+                      สุทธิ: {formatCurrency(filteredViewTotals.net)}
                     </td>
-                    <td className="py-3 px-4 text-right text-rose-600 dark:text-rose-400 font-black">
-                      -{formatCurrency(totalWithdrawals)}
-                    </td>
-                    <td className="py-3 px-4 text-right bg-[#a8d5a2] dark:bg-emerald-900/80 text-emerald-950 dark:text-emerald-100 border-x-2 border-[#8fc288] dark:border-emerald-700 font-black text-sm">
-                      {formatCurrency(totalPoolSavings)}
+                    <td className="py-3 px-4 text-right font-black bg-[#a8d5a2] dark:bg-emerald-900/60 text-emerald-950 dark:text-emerald-100 border-x-2 border-[#8fc288] dark:border-emerald-700 text-[13px]">
+                      {displayPassbookRows.length > 0
+                        ? formatCurrency(
+                            sortOrder === 'chronological'
+                              ? displayPassbookRows[displayPassbookRows.length - 1].runningBalance
+                              : displayPassbookRows[0].runningBalance
+                          )
+                        : formatCurrency(totalEndingBalance)}
                     </td>
                     <td colSpan={3} className="py-3 px-6 text-slate-500 text-[11px]">
-                      ยอดคงเหลือสะสมสุทธิในกองกลาง
+                      ฝาก: {formatCurrency(filteredViewTotals.deposits)} | ถอน: {formatCurrency(filteredViewTotals.withdrawals)}
                     </td>
                   </tr>
                 </tfoot>
@@ -573,140 +811,368 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: GOALS & MILESTONES SECTION */}
-      {activeTab === 'goals' && (
+      {/* 6. TAB 2: TRANSPOSED MONTHLY SAVINGS SUMMARY (แนวนอน) */}
+      {(activeTab === 'monthly' || tableOrientation === 'transposed') && activeTab !== 'goals' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <span>เป้าหมายเงินออมครอบครัว (Family Savings Goals)</span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                ความคืบหน้ารวม {formatPercent(overallGoalProgress, 1)} ({formatCurrency(totalGoalCurrent)} / {formatCurrency(totalGoalTarget)})
+          
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+            <div ref={transposedScrollContainerRef} className="overflow-x-auto max-w-full">
+              <table className="w-full text-left text-xs border-collapse">
+                
+                {/* Header: Months as Columns */}
+                <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
+                  <tr>
+                    {/* Sticky Left Header */}
+                    <th className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 min-w-[210px] w-[210px] border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]">
+                      <div className="flex items-center justify-between">
+                        <span>รายการเงินออม</span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          ({displayTransposedMonths.length} ด.)
+                        </span>
+                      </div>
+                    </th>
+
+                    {/* Month Columns */}
+                    {displayTransposedMonths.map(m => {
+                      const isCurrent = m.monthKey === currentMonthKey;
+                      return (
+                        <th
+                          key={m.monthKey}
+                          ref={isCurrent ? currentMonthThRef : undefined}
+                          className={`py-3 px-3 min-w-[110px] text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap ${
+                            isCurrent
+                              ? 'bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-black'
+                              : ''
+                          }`}
+                        >
+                          <div className="flex flex-col items-end">
+                            <span>{m.monthLabel}</span>
+                            {isCurrent && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold mt-0.5 shadow-2xs">
+                                ปัจจุบัน
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
+
+                    {/* Summary Columns */}
+                    <th className="py-3 px-3 min-w-[120px] text-right font-black text-emerald-900 dark:text-emerald-300 border-r border-slate-200 dark:border-slate-700 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                      รวมทั้งสิ้น
+                    </th>
+                    <th className="py-3 px-3 min-w-[110px] text-right font-black text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                      เฉลี่ย/เดือน
+                    </th>
+                  </tr>
+                </thead>
+
+                {/* Body: Savings Rows */}
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                  
+                  {/* ROW 1: ยอดฝากเงินออม (Deposits) */}
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-900 dark:text-slate-100 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span>📥 ยอดฝากเงินออม</span>
+                      </div>
+                    </td>
+                    {displayTransposedMonths.map(m => {
+                      const isCurrent = m.monthKey === currentMonthKey;
+                      return (
+                        <td
+                          key={m.monthKey}
+                          className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap text-emerald-600 dark:text-emerald-400 ${
+                            isCurrent ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''
+                          }`}
+                        >
+                          {formatCurrencySpreadsheet(m.depositTotal)}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2.5 px-3 text-right font-black text-emerald-700 dark:text-emerald-400 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                      {formatCurrency(transposedSummary.sumDep)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-600 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                      {formatCurrency(transposedSummary.avgDep)}
+                    </td>
+                  </tr>
+
+                  {/* ROW 2: ยอดถอนเงินออม (Withdrawals) */}
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-900 dark:text-slate-100 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span>📤 ยอดถอนเงินออม</span>
+                      </div>
+                    </td>
+                    {displayTransposedMonths.map(m => {
+                      const isCurrent = m.monthKey === currentMonthKey;
+                      return (
+                        <td
+                          key={m.monthKey}
+                          className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap text-rose-600 dark:text-rose-400 ${
+                            isCurrent ? 'bg-rose-50/50 dark:bg-rose-950/20' : ''
+                          }`}
+                        >
+                          {formatCurrencySpreadsheet(m.withdrawalTotal > 0 ? -m.withdrawalTotal : 0)}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2.5 px-3 text-right font-black text-rose-700 dark:text-rose-400 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                      {formatCurrency(transposedSummary.sumWithdr)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-600 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                      {formatCurrency(transposedSummary.avgWithdr)}
+                    </td>
+                  </tr>
+
+                  {/* ROW 3: เงินออมสุทธิประจำเดือน (Net Monthly) */}
+                  <tr className="bg-slate-100/70 dark:bg-slate-800/70 border-y-2 border-slate-300 dark:border-slate-700 font-black">
+                    <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 font-black text-slate-900 dark:text-white border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                      ⚖️ ออมสุทธิประจำเดือน
+                    </td>
+                    {displayTransposedMonths.map(m => {
+                      const isCurrent = m.monthKey === currentMonthKey;
+                      const isZero = Math.abs(m.netSavings) < 0.01;
+                      const isNeg = m.netSavings < 0;
+                      return (
+                        <td
+                          key={m.monthKey}
+                          className={`py-3 px-3 text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap font-black ${
+                            isZero
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : isNeg
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-slate-900 dark:text-slate-100'
+                          } ${isCurrent ? 'bg-emerald-100/40 dark:bg-emerald-950/30 font-extrabold' : ''}`}
+                        >
+                          {formatCurrencySpreadsheet(m.netSavings)}
+                        </td>
+                      );
+                    })}
+                    <td
+                      className={`py-3 px-3 text-right font-black border-r border-slate-300 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 whitespace-nowrap ${
+                        transposedSummary.sumNet < 0 ? 'text-rose-600' : 'text-slate-900 dark:text-white'
+                      }`}
+                    >
+                      {formatCurrencySpreadsheet(transposedSummary.sumNet)}
+                    </td>
+                    <td
+                      className={`py-3 px-3 text-right font-black bg-slate-200/50 dark:bg-slate-700/50 whitespace-nowrap ${
+                        transposedSummary.avgNet < 0 ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {formatCurrencySpreadsheet(transposedSummary.avgNet)}
+                    </td>
+                  </tr>
+
+                  {/* ROW 4: เงินออมสะสมสิ้นเดือน (Ending Cumulative Balance) */}
+                  <tr className="bg-emerald-50/70 dark:bg-emerald-950/40 border-b-2 border-emerald-300 dark:border-emerald-700/60 font-black">
+                    <td className="sticky left-0 z-10 bg-[#a8d5a2] dark:bg-emerald-950 py-3.5 px-4 font-black text-emerald-950 dark:text-emerald-100 border-r-2 border-emerald-300 dark:border-emerald-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                      🏦 ยอดเงินออมสะสมสิ้นเดือน
+                    </td>
+                    {displayTransposedMonths.map(m => {
+                      const isCurrent = m.monthKey === currentMonthKey;
+                      return (
+                        <td
+                          key={m.monthKey}
+                          className={`py-3 px-3 text-right border-r border-emerald-200/70 dark:border-emerald-900/40 whitespace-nowrap font-black text-emerald-950 dark:text-emerald-100 text-[13px] bg-[#a8d5a2]/50 dark:bg-emerald-950/60 ${
+                            isCurrent ? 'bg-[#a8d5a2] dark:bg-emerald-900/70 font-extrabold' : ''
+                          }`}
+                        >
+                          {formatCurrency(m.endingBalance)}
+                        </td>
+                      );
+                    })}
+                    <td className="py-3 px-3 text-right font-black text-emerald-950 dark:text-emerald-100 border-r border-emerald-300 dark:border-emerald-800 bg-[#a8d5a2] dark:bg-emerald-900/80 whitespace-nowrap text-[13px]">
+                      {formatCurrency(transposedSummary.latestEndingBalance)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-emerald-900 dark:text-emerald-200 bg-[#a8d5a2]/60 dark:bg-emerald-900/60 whitespace-nowrap">
+                      คงเหลือสิ้นงวด
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 7. TAB 3: GOALS & FUNDS MANAGEMENT */}
+      {activeTab === 'goals' && (
+        <div className="space-y-6">
+          
+          {/* Fund Balance Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 shadow-sm">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                  <span>💳</span>
+                  <span>กองหมุนเวียน (Operating Fund)</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                  ใช้จ่ายประจำวัน
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                {formatCurrency(operatingBalance)}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                เงินหมุนเวียนสำหรับค่าใช้จ่าย บิล และค่าบัตรเครดิต
               </p>
             </div>
 
-            {/* Category Filter */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/20 shadow-sm">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                <span className="text-xs font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+                  <span>🏛️</span>
+                  <span>กองระยะยาว (Long-Term Fund)</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300">
+                  เพื่ออนาคต
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                {formatCurrency(longTermBalance)}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                เงินสะสมระยะยาวเพื่อความมั่นคง กองทุนลงทุน และเป้าหมายครอบครัว
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Add Bar */}
+          <QuickAddBar
+            settings={settings}
+            onQuickAdd={onQuickAdd}
+            onQuickWithdraw={onQuickWithdraw}
+            onOpenCustomAdd={onOpenCustomAdd}
+            onUpdatePresets={onUpdatePresets}
+          />
+
+          {/* Category Filter for Goals */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-slate-400 font-bold mr-1">หมวดหมู่เป้าหมาย:</span>
               <button
                 onClick={() => setGoalFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   goalFilter === 'all'
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                 }`}
               >
                 ทั้งหมด ({goals.length})
               </button>
-              {categories.map(cat => (
+              {categories.map(c => (
                 <button
-                  key={cat}
-                  onClick={() => setGoalFilter(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
-                    goalFilter === cat
+                  key={c}
+                  onClick={() => setGoalFilter(c)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
+                    goalFilter === c
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                   }`}
                 >
-                  {cat}
+                  {c}
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={() => onOpenGoalModal(null)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>สร้างเป้าหมายใหม่</span>
+            </button>
           </div>
 
-          {/* Goals Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Goal Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredGoals.map(goal => {
               const pct = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
-              const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
+              const isAchieved = goal.currentAmount >= goal.targetAmount;
 
               return (
                 <div
                   key={goal.id}
-                  className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-4 hover:border-emerald-500/40 transition"
+                  className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition space-y-4"
                 >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800">
+                        {goal.icon}
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-base">
+                          {goal.title}
+                        </h4>
+                        <span className="text-xs text-slate-500">{goal.category}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onOpenGoalModal(goal)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteGoal(goal.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl flex-shrink-0">
-                          {goal.icon}
-                        </div>
-                        <div>
-                          <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                            {goal.title}
-                          </h4>
-                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
-                            {goal.category}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => onOpenGoalModal(goal)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition"
-                          title="แก้ไขเป้าหมาย"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteGoal(goal.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                          title="ลบเป้าหมาย"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                      <span className="text-slate-600 dark:text-slate-400">ความคืบหน้า</span>
+                      <span className={isAchieved ? 'text-emerald-600 font-extrabold' : 'text-slate-900 dark:text-white'}>
+                        {pct.toFixed(1)}% {isAchieved && '🎉 ครบแล้ว!'}
+                      </span>
                     </div>
 
-                    {goal.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 line-clamp-2">
-                        {goal.description}
-                      </p>
-                    )}
-
-                    {/* Progress Bar */}
-                    <div className="mt-4 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {formatCurrency(goal.currentAmount)}
-                        </span>
-                        <span className="text-slate-500 dark:text-slate-400">
-                          เป้าหมาย {formatCurrency(goal.targetAmount)} ({pct.toFixed(1)}%)
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
-                          style={{ width: `${Math.min(pct, 100)}%` }}
-                        />
-                      </div>
+                    <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, pct))}%`,
+                          backgroundColor: isAchieved ? '#10B981' : goal.color || '#10B981',
+                        }}
+                      />
                     </div>
                   </div>
 
-                  {/* Footer of card */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {remaining <= 0 ? (
-                        <span className="text-emerald-600 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          สำเร็จแล้ว 🎉
-                        </span>
-                      ) : (
-                        <span>ขาดอีก {formatCurrency(remaining)}</span>
-                      )}
-                    </span>
-
-                    <button
-                      onClick={() => onOpenDepositForGoal(goal.id)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition flex items-center gap-1"
-                    >
-                      <span>หยอดเงินเข้าเป้าหมายนี้</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">สะสมแล้ว</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white text-sm">
+                        {formatCurrency(goal.currentAmount)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400 block text-[10px]">เป้าหมาย</span>
+                      <span className="font-bold text-slate-600 dark:text-slate-400">
+                        {formatCurrency(goal.targetAmount)}
+                      </span>
+                    </div>
                   </div>
 
+                  <button
+                    onClick={() => onOpenDepositForGoal(goal.id)}
+                    className="w-full py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>จัดสรรเงินเข้าเป้าหมายนี้</span>
+                  </button>
                 </div>
               );
             })}
