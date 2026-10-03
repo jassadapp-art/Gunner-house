@@ -54,6 +54,61 @@ export const getMonthLabel = (yearMonth: string): string => {
   return `${THAI_MONTHS_SHORT[monthIdx]} '${thaiYear}`;
 };
 
+/**
+ * Format month label for spreadsheet like in Image 1: "มิ.ย.-2021", "ก.ค.-2021", "ม.ค.-2024"
+ */
+export const formatSpreadsheetMonth = (yearMonth: string): string => {
+  const [yearStr, monthStr] = yearMonth.split('-');
+  const monthIdx = parseInt(monthStr, 10) - 1;
+  const safeIdx = Math.max(0, Math.min(11, isNaN(monthIdx) ? 0 : monthIdx));
+  return `${THAI_MONTHS_SHORT[safeIdx]}-${yearStr}`;
+};
+
+/**
+ * Format currency matching Excel/Spreadsheet style in Image 1:
+ * - 0 becomes "฿ -"
+ * - negative becomes "฿ (846.60)"
+ * - positive becomes "฿ 17,834.82"
+ */
+export const formatCurrencySpreadsheet = (amount: number, blankIfZero: boolean = true): string => {
+  if (Math.abs(amount) < 0.001) {
+    return blankIfZero ? '฿ -' : '฿ 0.00';
+  }
+  if (amount < 0) {
+    const formatted = new Intl.NumberFormat('th-TH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+    return `฿ (${formatted})`;
+  }
+  const formatted = new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return `฿ ${formatted}`;
+};
+
+/**
+ * Format full date matching Image 2 passbook: "31 พ.ค. 2022"
+ */
+export const formatPassbookDate = (dateStr: string): string => {
+  if (!dateStr) return '-';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const safeMonth = Math.max(0, Math.min(11, isNaN(month) ? 0 : month));
+      return `${day} ${THAI_MONTHS_SHORT[safeMonth]} ${year}`;
+    }
+    const d = new Date(dateStr);
+    return `${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  } catch {
+    return dateStr;
+  }
+};
+
 export const getCurrentYearMonth = (): string => {
   const now = new Date();
   const year = now.getFullYear();

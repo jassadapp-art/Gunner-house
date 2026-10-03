@@ -71,7 +71,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   useEffect(() => {
     if (editingExpense) {
       setTitle(editingExpense.title);
-      setAmount(editingExpense.amount.toString());
+      setAmount(
+        editingExpense.estimatedAmount !== undefined
+          ? editingExpense.estimatedAmount.toString()
+          : editingExpense.amount.toString()
+      );
       setAmountType(editingExpense.amountType || 'fixed');
       setCurrentMonthAmount(
         editingExpense.currentMonthAmount !== undefined ? editingExpense.currentMonthAmount.toString() : ''
@@ -133,6 +137,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       id: editingExpense?.id || `exp-${Date.now()}`,
       title: title.trim(),
       amount: numAmount,
+      estimatedAmount: numAmount, // ยอดประมาณการประจำเดือน สามารถแก้ไขได้ตลอดเวลา
       amountType,
       currentMonthAmount: amountType === 'variable' ? numActual : undefined,
       monthlyBills: editingExpense?.monthlyBills,
@@ -292,19 +297,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           <div className="grid grid-cols-1 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                  {amountType === 'variable' ? (
-                    <>
-                      <Zap className="w-3.5 h-3.5 text-amber-500" />
-                      <span>ยอดประมาณการ / งบต่อเดือน (THB) *</span>
-                    </>
-                  ) : (
-                    <span>จำนวนเงินคงที่ต่อเดือน (THB) *</span>
-                  )}
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span className="text-emerald-600 dark:text-emerald-400">📊</span>
+                  <span>ยอดประมาณการประจำเดือน (THB) *</span>
                 </label>
-                {amountType === 'variable' && (
-                  <span className="text-[11px] text-slate-400">ใช้เป็นฐานคำนวณงบประมาณ</span>
-                )}
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  {amountType === 'variable' ? 'งบประมาณฐาน (แก้ทีหลังได้)' : 'ยอดประจำ (แก้ทีหลังได้)'}
+                </span>
               </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
@@ -320,6 +319,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-base rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                💡 ยอดประมาณการนี้จะแสดงในตารางรายจ่ายรายเดือน สามารถตั้งตอนเพิ่มรายจ่ายหรือกดแก้ไขทีหลังได้ตลอดเวลา
+              </p>
             </div>
 
             {/* If Variable: Actual bill for current month */}

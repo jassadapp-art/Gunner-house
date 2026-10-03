@@ -52,12 +52,16 @@ const CATEGORY_ICONS: Record<string, string> = {
   'ของกินและของใช้ในบ้าน': '🛒',
 };
 
+export function getExpenseEstimatedAmount(exp: MonthlyExpense): number {
+  return exp.estimatedAmount ?? exp.amount;
+}
+
 export function getExpenseAmountForMonth(exp: MonthlyExpense, monthKey: string): number {
   if (exp.monthlyBills && exp.monthlyBills[monthKey] !== undefined) {
     return exp.monthlyBills[monthKey];
   }
   if (exp.amountType === 'variable') {
-    return exp.currentMonthAmount !== undefined ? exp.currentMonthAmount : exp.amount;
+    return exp.currentMonthAmount !== undefined ? exp.currentMonthAmount : (exp.estimatedAmount ?? exp.amount);
   }
   return exp.amount;
 }
@@ -86,8 +90,10 @@ export function buildMonthlyMetricsHistory(
 
   monthKeys.forEach(mKey => {
     // 1. Income for month
-    let incomeA = baseIncomeA;
-    let incomeB = baseIncomeB;
+    const customIncome = settings.monthlyIncomes?.[mKey];
+    let incomeA = customIncome?.person_a !== undefined ? customIncome.person_a : baseIncomeA;
+    let incomeB = customIncome?.person_b !== undefined ? customIncome.person_b : baseIncomeB;
+    let extraOther = customIncome?.other ?? 0;
 
     // Check for ad-hoc income transactions in that month
     transactions.forEach(t => {
@@ -95,13 +101,12 @@ export function buildMonthlyMetricsHistory(
         if (t.contributorId === 'person_a') incomeA += t.amount;
         else if (t.contributorId === 'person_b') incomeB += t.amount;
         else {
-          incomeA += t.amount / 2;
-          incomeB += t.amount / 2;
+          extraOther += t.amount;
         }
       }
     });
 
-    const totalIncome = incomeA + incomeB;
+    const totalIncome = incomeA + incomeB + extraOther;
 
     // 2. Expenses for month
     let fixedExpenses = 0;

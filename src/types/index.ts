@@ -49,6 +49,7 @@ export interface MonthlyExpense {
   id: string;
   title: string;
   amount: number; // Base amount: for fixed this is regular monthly amount; for variable this is estimated/budgeted amount
+  estimatedAmount?: number; // Explicit estimated/budgeted amount per month, editable anytime
   amountType?: ExpenseAmountType; // 'fixed' (default) or 'variable'
   currentMonthAmount?: number; // Actual recorded amount for current billing cycle
   monthlyBills?: Record<string, number>; // Historical records of monthly bill amounts e.g. { '2026-08': 4150, '2026-09': 4320 }
@@ -122,6 +123,7 @@ export interface HouseholdSettings {
   quickAddPresets?: number[];      // Custom quick add amount presets
   investments?: InvestmentItem[];
   taxProfiles?: Record<'person_a' | 'person_b', TaxProfile>;
+  monthlyIncomes?: Record<string, { person_a?: number; person_b?: number; other?: number; note?: string }>;
 }
 
 export interface MonthlySummary {
