@@ -7,7 +7,6 @@ import {
   formatSpreadsheetMonth,
   getCurrentYearMonth,
 } from '../utils/formatters';
-import { QuickAddBar } from './QuickAddBar';
 import {
   PiggyBank,
   Target,
@@ -26,7 +25,7 @@ interface SavingsViewProps {
   settings: HouseholdSettings;
   goals: SavingsGoal[];
   transactions: Transaction[];
-  onQuickAdd: (contributorId: ContributorId, amount: number, note: string, targetFund: HouseholdFundType) => void;
+  onQuickAdd?: (contributorId: ContributorId, amount: number, note: string, targetFund: HouseholdFundType) => void;
   onQuickWithdraw?: (contributorId: ContributorId, amount: number, note: string, targetFund: HouseholdFundType) => void;
   onOpenCustomAdd: (contributorId?: ContributorId, fund?: HouseholdFundType, type?: 'deposit' | 'withdrawal') => void;
   onUpdatePresets?: (presets: number[]) => void;
@@ -64,10 +63,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   settings,
   goals,
   transactions,
-  onQuickAdd,
-  onQuickWithdraw,
   onOpenCustomAdd,
-  onUpdatePresets,
   onOpenGoalModal,
   onDeleteGoal,
   onOpenDepositForGoal,
@@ -109,28 +105,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
     }
   }, [tableOrientation, activeTab, selectedYear]);
 
-  // 1. Calculate Fund Balances
-  const operatingBalance = useMemo(() => {
-    return transactions.reduce((acc, t) => {
-      const fund = t.targetFund || 'operating';
-      if (fund === 'operating') {
-        return acc + (t.type === 'withdrawal' ? -t.amount : t.amount);
-      }
-      return acc;
-    }, 0);
-  }, [transactions]);
-
-  const longTermBalance = useMemo(() => {
-    return transactions.reduce((acc, t) => {
-      const fund = t.targetFund || 'operating';
-      if (fund === 'long_term') {
-        return acc + (t.type === 'withdrawal' ? -t.amount : t.amount);
-      }
-      return acc;
-    }, 0);
-  }, [transactions]);
-
-  // 2. Build Running Balance Passbook Rows matching Image 4 (146 items)
+  // 1. Build Running Balance Passbook Rows matching Image 4 (146 items)
   // Sorted chronologically to calculate the precise cumulative running balance
   const allPassbookRows = useMemo<PassbookRow[]>(() => {
     const sorted = [...transactions].sort((a, b) => {
@@ -1075,55 +1050,6 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       {/* 7. TAB 3: GOALS & FUNDS MANAGEMENT */}
       {activeTab === 'goals' && (
         <div className="space-y-6">
-          
-          {/* Fund Balance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/20 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-                  <span>💳</span>
-                  <span>กองหมุนเวียน (Operating Fund)</span>
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
-                  ใช้จ่ายประจำวัน
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                {formatCurrency(operatingBalance)}
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-                เงินหมุนเวียนสำหรับค่าใช้จ่าย บิล และค่าบัตรเครดิต
-              </p>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/20 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                <span className="text-xs font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
-                  <span>🏛️</span>
-                  <span>กองระยะยาว (Long-Term Fund)</span>
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300">
-                  เพื่ออนาคต
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                {formatCurrency(longTermBalance)}
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
-                เงินสะสมระยะยาวเพื่อความมั่นคง กองทุนลงทุน และเป้าหมายครอบครัว
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Add Bar */}
-          <QuickAddBar
-            settings={settings}
-            onQuickAdd={onQuickAdd}
-            onQuickWithdraw={onQuickWithdraw}
-            onOpenCustomAdd={onOpenCustomAdd}
-            onUpdatePresets={onUpdatePresets}
-          />
-
           {/* Category Filter for Goals */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex flex-wrap items-center gap-1.5 text-xs">

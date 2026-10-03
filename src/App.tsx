@@ -92,7 +92,7 @@ export function App() {
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [initialContributor, setInitialContributor] = useState<ContributorId>('person_a');
+  const [initialContributor, setInitialContributor] = useState<ContributorId>('joint');
   const [initialGoalId, setInitialGoalId] = useState<string | undefined>(undefined);
   const [initialFund, setInitialFund] = useState<HouseholdFundType>('operating');
   const [initialType, setInitialType] = useState<TransactionType>('goal_allocation');
@@ -818,7 +818,7 @@ export function App() {
         onSelectPage={setActivePage}
         onOpenAddModal={() => {
           setEditingTransaction(null);
-          setInitialContributor('person_a');
+          setInitialContributor('joint');
           setInitialGoalId(undefined);
           setInitialFund('operating');
           setInitialCategory(undefined);
@@ -864,6 +864,7 @@ export function App() {
             onOpenAddTransactionModal={(type, cat) => {
               setEditingTransaction(null);
               setInitialType(type || 'deposit');
+              setInitialContributor('joint');
               setInitialCategory(cat || 'รายได้พิเศษ');
               setIsAddModalOpen(true);
             }}
@@ -893,7 +894,7 @@ export function App() {
             onOpenCustomAdd={(contributorId, fund, type) => {
               setEditingTransaction(null);
               setInitialType(type || 'deposit');
-              setInitialContributor(contributorId || 'person_a');
+              setInitialContributor(contributorId || 'joint');
               setInitialGoalId(undefined);
               setInitialFund(fund || 'operating');
               setInitialCategory(undefined);
@@ -908,6 +909,7 @@ export function App() {
             onOpenDepositForGoal={goalId => {
               setEditingTransaction(null);
               setInitialType('goal_allocation');
+              setInitialContributor('joint');
               setInitialGoalId(goalId);
               setIsAddModalOpen(true);
             }}
