@@ -62,6 +62,50 @@ export interface MonthlyExpense {
   lastPaidMonth?: string; // Year-Month when this expense was marked as paid, e.g. '2026-09'
 }
 
+export type InvestmentCategory =
+  | 'thaiesg'
+  | 'ssf'
+  | 'rmf'
+  | 'pvd'
+  | 'stock_thai'
+  | 'stock_global'
+  | 'mutual_fund'
+  | 'gold'
+  | 'crypto'
+  | 'other';
+
+export interface InvestmentItem {
+  id: string;
+  title: string;
+  category: InvestmentCategory;
+  owner: ContributorId;
+  initialCost: number;       // เงินต้นที่ลงทุน
+  currentValue: number;      // มูลค่าปัจจุบัน
+  monthlyDca: number;        // ยอดลงทุน DCA ต่อเดือน
+  targetValue?: number;      // มูลค่าเป้าหมาย
+  notes?: string;
+  updatedAt?: string;
+}
+
+export interface TaxProfile {
+  memberId: 'person_a' | 'person_b';
+  annualIncomeOverride?: number; // Override if different from monthlyIncome * 12
+  annualBonus?: number;          // โบนัสประจำปี
+  otherIncome?: number;          // รายได้อื่นๆ
+  socialSecurity: number;        // ประกันสังคม (สูงสุด 9,000)
+  pvdDeduction: number;          // กองทุนสำรองเลี้ยงชีพ PVD (สูงสุด 15% ไม่เกิน 500k)
+  lifeInsurance: number;         // ประกันชีวิตทั่วไป (สูงสุด 100,000)
+  healthInsurance: number;       // ประกันสุขภาพ (สูงสุด 25,000 รวมประกันชีวิตไม่เกิน 100,000)
+  thaiEsg: number;               // กองทุน ThaiESG (สูงสุด 300,000)
+  ssf: number;                   // กองทุน SSF (สูงสุด 200,000)
+  rmf: number;                   // กองทุน RMF (สูงสุด 500,000)
+  homeLoanInterest: number;      // ดอกเบี้ยบ้าน (สูงสุด 100,000)
+  parentDeductionCount: number;  // จำนวนบิดามารดาที่เลี้ยงดู (คนละ 30,000)
+  otherDeductions: number;       // ค่าลดหย่อนอื่นๆ (เช่น บริจาค)
+}
+
+export type ActivePage = 'dashboard' | 'monthly_ledger' | 'savings' | 'investment_tax';
+
 export interface HouseholdSettings {
   householdName: string;
   currency: string;
@@ -76,6 +120,8 @@ export interface HouseholdSettings {
   customExpenseCategories?: string[];
   householdMonthlyIncome?: number; // Total household monthly income
   quickAddPresets?: number[];      // Custom quick add amount presets
+  investments?: InvestmentItem[];
+  taxProfiles?: Record<'person_a' | 'person_b', TaxProfile>;
 }
 
 export interface MonthlySummary {

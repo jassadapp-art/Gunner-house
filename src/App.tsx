@@ -1,6 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import type { ContributorId, HouseholdFundType, HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction, TransactionType } from './types';
+import type {
+  ContributorId,
+  HouseholdFundType,
+  HouseholdSettings,
+  MonthlyExpense,
+  SavingsGoal,
+  Transaction,
+  TransactionType,
+  ActivePage,
+} from './types';
 import {
   loadStoredSettings,
   saveStoredSettings,
@@ -23,12 +32,10 @@ import {
 
 // Components
 import { Navbar } from './components/Navbar';
-import { OverviewCards } from './components/OverviewCards';
-import { QuickAddBar } from './components/QuickAddBar';
-import { AnalyticsSection } from './components/AnalyticsSection';
-import { GoalsList } from './components/GoalsList';
-import { ExpensesSection } from './components/ExpensesSection';
-import { TransactionHistory } from './components/TransactionHistory';
+import { DashboardView } from './components/DashboardView';
+import { MonthlyLedgerView } from './components/MonthlyLedgerView';
+import { SavingsView } from './components/SavingsView';
+import { InvestmentTaxView } from './components/InvestmentTaxView';
 import { AddTransactionModal } from './components/AddTransactionModal';
 import { GoalModal } from './components/GoalModal';
 import { ExpenseModal } from './components/ExpenseModal';
@@ -79,6 +86,9 @@ export function App() {
     setIsUnlocked(true);
   };
 
+  // Active Page Tab (1. Dashboard, 2. Monthly Ledger, 3. Savings, 4. Investment & Tax)
+  const [activePage, setActivePage] = useState<ActivePage>('dashboard');
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -86,6 +96,7 @@ export function App() {
   const [initialGoalId, setInitialGoalId] = useState<string | undefined>(undefined);
   const [initialFund, setInitialFund] = useState<HouseholdFundType>('operating');
   const [initialType, setInitialType] = useState<TransactionType>('goal_allocation');
+  const [initialCategory, setInitialCategory] = useState<string | undefined>(undefined);
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
@@ -704,20 +715,15 @@ export function App() {
       {/* Navigation Bar */}
       <Navbar
         settings={settings}
+        activePage={activePage}
+        onSelectPage={setActivePage}
         onOpenAddModal={() => {
           setEditingTransaction(null);
           setInitialContributor('person_a');
           setInitialGoalId(undefined);
           setInitialFund('operating');
+          setInitialCategory(undefined);
           setIsAddModalOpen(true);
-        }}
-        onOpenGoalModal={() => {
-          setEditingGoal(null);
-          setIsGoalModalOpen(true);
-        }}
-        onOpenExpenseModal={() => {
-          setEditingExpense(null);
-          setIsExpenseModalOpen(true);
         }}
         onOpenSettingsModal={() => {
           setSettingsTab('profile');
@@ -728,95 +734,106 @@ export function App() {
           setIsSettingsModalOpen(true);
         }}
         cloudStatus={cloudStatus}
-        onResetData={handleResetData}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}
       />
 
-      {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-7">
+      {/* Main Content: 4 Pages */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-7 pb-24 sm:pb-8">
         
-        {/* Quick Add Bar */}
-        <QuickAddBar
-          settings={settings}
-          onQuickAdd={handleQuickAdd}
-          onQuickWithdraw={handleQuickWithdraw}
-          onOpenCustomAdd={(contributorId, fund) => {
-            setEditingTransaction(null);
-            setInitialType('deposit');
-            setInitialContributor(contributorId || 'person_a');
-            setInitialGoalId(undefined);
-            setInitialFund(fund || 'operating');
-            setIsAddModalOpen(true);
-          }}
-          onUpdatePresets={handleUpdatePresets}
-        />
+        {/* 1. หน้า Dashboard สรุปภาพรวม & กราฟแนวโน้ม 5 ตัว */}
+        {activePage === 'dashboard' && (
+          <DashboardView
+            settings={settings}
+            expenses={expenses}
+            transactions={transactions}
+            onNavigateToTab={setActivePage}
+          />
+        )}
 
-        {/* 1. Overview KPI Cards */}
-        <OverviewCards
-          transactions={transactions}
-          goals={goals}
-          settings={settings}
-          expenses={expenses}
-        />
+        {/* 2. หน้าลงรายละเอียดรายเดือน เป็นตารางรายรับ-รายจ่าย */}
+        {activePage === 'monthly_ledger' && (
+          <MonthlyLedgerView
+            settings={settings}
+            expenses={expenses}
+            transactions={transactions}
+            onOpenExpenseModal={exp => {
+              setEditingExpense(exp || null);
+              setIsExpenseModalOpen(true);
+            }}
+            onOpenAddTransactionModal={(type, cat) => {
+              setEditingTransaction(null);
+              setInitialType(type || 'deposit');
+              setInitialCategory(cat || 'รายได้พิเศษ');
+              setIsAddModalOpen(true);
+            }}
+            onToggleExpensePaid={handleToggleExpensePaid}
+            onUpdateExpenseBill={handleUpdateExpenseBill}
+            onDeleteExpense={handleDeleteExpense}
+            onEditTransaction={tx => {
+              setEditingTransaction(tx);
+              setIsAddModalOpen(true);
+            }}
+            onDeleteTransaction={handleDeleteTransaction}
+            onForceResetNewMonth={handleForceResetMonthlyExpenses}
+          />
+        )}
 
-        {/* 2. Charts & Analytics Section */}
-        <AnalyticsSection
-          transactions={transactions}
-          settings={settings}
-        />
+        {/* 3. หน้าเงินออม & เป้าหมายครอบครัว */}
+        {activePage === 'savings' && (
+          <SavingsView
+            settings={settings}
+            goals={goals}
+            transactions={transactions}
+            onQuickAdd={handleQuickAdd}
+            onQuickWithdraw={handleQuickWithdraw}
+            onOpenCustomAdd={(contributorId, fund) => {
+              setEditingTransaction(null);
+              setInitialType('deposit');
+              setInitialContributor(contributorId || 'person_a');
+              setInitialGoalId(undefined);
+              setInitialFund(fund || 'operating');
+              setInitialCategory(undefined);
+              setIsAddModalOpen(true);
+            }}
+            onUpdatePresets={handleUpdatePresets}
+            onOpenGoalModal={goal => {
+              setEditingGoal(goal || null);
+              setIsGoalModalOpen(true);
+            }}
+            onDeleteGoal={handleDeleteGoal}
+            onOpenDepositForGoal={goalId => {
+              setEditingTransaction(null);
+              setInitialType('goal_allocation');
+              setInitialGoalId(goalId);
+              setIsAddModalOpen(true);
+            }}
+            onEditTransaction={tx => {
+              setEditingTransaction(tx);
+              setIsAddModalOpen(true);
+            }}
+            onDeleteTransaction={handleDeleteTransaction}
+          />
+        )}
 
-        {/* 3. Monthly Recurring Expenses (New Feature) */}
-        <ExpensesSection
-          expenses={expenses}
-          settings={settings}
-          onOpenExpenseModal={exp => {
-            setEditingExpense(exp || null);
-            setIsExpenseModalOpen(true);
-          }}
-          onDeleteExpense={handleDeleteExpense}
-          onToggleExpensePaid={handleToggleExpensePaid}
-          onUpdateExpenseBill={handleUpdateExpenseBill}
-          onForceResetNewMonth={handleForceResetMonthlyExpenses}
-        />
-
-        {/* 4. Shared Goals & Milestones */}
-        <GoalsList
-          goals={goals}
-          transactions={transactions}
-          onOpenGoalModal={goal => {
-            setEditingGoal(goal || null);
-            setIsGoalModalOpen(true);
-          }}
-          onOpenDepositForGoal={goalId => {
-            setEditingTransaction(null);
-            setInitialType('goal_allocation');
-            setInitialGoalId(goalId);
-            setIsAddModalOpen(true);
-          }}
-        />
-
-        {/* 5. Transaction History Table */}
-        <TransactionHistory
-          transactions={transactions}
-          goals={goals}
-          settings={settings}
-          onEditTransaction={tx => {
-            setEditingTransaction(tx);
-            setIsAddModalOpen(true);
-          }}
-          onDeleteTransaction={handleDeleteTransaction}
-        />
+        {/* 4. หน้าแผนลงทุนและภาษี */}
+        {activePage === 'investment_tax' && (
+          <InvestmentTaxView
+            settings={settings}
+            onUpdateSettings={setSettings}
+            onShowToast={showToast}
+          />
+        )}
 
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-emerald-900/10 dark:border-slate-800/80 bg-white/70 dark:bg-slate-950/40 py-6 mt-12 text-xs text-slate-600 dark:text-slate-500 text-center transition-colors">
+      <footer className="border-t border-emerald-900/10 dark:border-slate-800/80 bg-white/70 dark:bg-slate-950/40 py-6 text-xs text-slate-600 dark:text-slate-500 text-center transition-colors pb-24 sm:pb-6">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-slate-700 dark:text-slate-300">Household Savings Tracker</span>
+            <span className="font-medium text-slate-700 dark:text-slate-300">Household Savings & Financial Planner</span>
             <span>•</span>
-            <span className="text-slate-500 dark:text-slate-400">ระบบติดตามเงินออมและค่าใช้จ่ายกองกลางครัวเรือนสำหรับ 2 คน</span>
+            <span className="text-slate-500 dark:text-slate-400">ระบบบริหารการเงินและภาษีครอบครัว 4 หน้าสำหรับ 2 คน</span>
           </div>
           <div className="flex items-center gap-1">
             <span>สร้างขึ้นด้วยความรัก</span>
@@ -832,6 +849,7 @@ export function App() {
         onClose={() => {
           setIsAddModalOpen(false);
           setEditingTransaction(null);
+          setInitialCategory(undefined);
         }}
         onSave={handleSaveTransaction}
         editingTransaction={editingTransaction}
@@ -839,6 +857,7 @@ export function App() {
         initialGoalId={initialGoalId}
         initialFund={initialFund}
         initialType={initialType}
+        initialCategory={initialCategory}
         longTermBalance={currentLongTermBalance}
         operatingBalance={currentOperatingBalance}
         goals={goals}
