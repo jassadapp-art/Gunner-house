@@ -1,39 +1,45 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v10';
-const GOALS_KEY = 'household_savings_goals_v10';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v10';
-const EXPENSES_KEY = 'household_savings_expenses_v10';
+const SETTINGS_KEY = 'household_savings_settings_v11';
+const GOALS_KEY = 'household_savings_goals_v11';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v11';
+const EXPENSES_KEY = 'household_savings_expenses_v11';
 
 /**
  * Safe fallback reader:
- * First checks v10; if not found, checks older versions (v9, v8, etc.)
- * For transactions and settings: replaces with verified dataset matching user images.
+ * First checks v11; if not found, checks older versions (v10, v9, etc.)
+ * For transactions and goals: loads verified dataset matching user images (balance 157,359.89).
  */
 const getWithFallback = (baseKey: string): string | null => {
   try {
-    const current = localStorage.getItem(`${baseKey}_v10`);
+    const current = localStorage.getItem(`${baseKey}_v11`);
     if (current) return current;
 
-    // For transactions: replace old savings data with verified Image 4 transactions
+    // For transactions: replace old savings data with verified dataset
     if (baseKey === 'household_savings_transactions') {
-      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialTransactions));
+      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialTransactions));
       return JSON.stringify(initialTransactions);
+    }
+
+    // For goals: refresh emergency goal to 157,359.89
+    if (baseKey === 'household_savings_goals') {
+      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialGoals));
+      return JSON.stringify(initialGoals);
     }
 
     // For settings: load verified monthlyIncomes matching Image 1 & 2
     if (baseKey === 'household_savings_settings') {
-      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialSettings));
+      localStorage.setItem(`${baseKey}_v11`, JSON.stringify(initialSettings));
       return JSON.stringify(initialSettings);
     }
 
     // Check previous versions in descending order
-    for (const ver of ['v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+    for (const ver of ['v10', 'v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
       const prev = localStorage.getItem(`${baseKey}_${ver}`);
       if (prev) {
-        // Automatically migrate forward to v10 so user data is preserved
-        localStorage.setItem(`${baseKey}_v10`, prev);
+        // Automatically migrate forward to v11 so user data is preserved
+        localStorage.setItem(`${baseKey}_v11`, prev);
         return prev;
       }
     }
@@ -84,7 +90,7 @@ export const loadStoredGoals = (): SavingsGoal[] => {
       const parsed: SavingsGoal[] = JSON.parse(saved);
       return parsed.map(g => {
         if (g.id === 'goal-emergency') {
-          return { ...g, currentAmount: 297463.40, targetAmount: 200000 };
+          return { ...g, currentAmount: 157359.89, targetAmount: 200000 };
         }
         return g;
       });
