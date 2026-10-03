@@ -32,6 +32,7 @@ import {
 
 // Components
 import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { MonthlyLedgerView } from './components/MonthlyLedgerView';
 import { SavingsView } from './components/SavingsView';
@@ -867,103 +868,120 @@ export function App() {
         onUpdateHouseholdTitle={handleUpdateHouseholdTitle}
       />
 
-      {/* Main Content: 4 Pages */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-7 pb-24 sm:pb-8">
-        
-        {/* 1. หน้า Dashboard สรุปภาพรวม & กราฟแนวโน้ม 5 ตัว */}
-        {activePage === 'dashboard' && (
-          <DashboardView
-            settings={settings}
-            expenses={expenses}
-            transactions={transactions}
-            onNavigateToTab={setActivePage}
-          />
-        )}
+      {/* App Body with Left Sidebar (Request 3: แถบเมนูด้านซ้ายเรียงจากบนลงล่าง) */}
+      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1850px] mx-auto">
+        <Sidebar
+          settings={settings}
+          activePage={activePage}
+          onSelectPage={setActivePage}
+          onOpenAddModal={() => {
+            setEditingTransaction(null);
+            setInitialContributor('joint');
+            setInitialGoalId(undefined);
+            setInitialFund('operating');
+            setInitialCategory(undefined);
+            setIsAddModalOpen(true);
+          }}
+        />
 
-        {/* 2. หน้าลงรายละเอียดรายเดือน เป็นตารางรายรับ-รายจ่าย */}
-        {activePage === 'monthly_ledger' && (
-          <MonthlyLedgerView
-            settings={settings}
-            expenses={expenses}
-            transactions={transactions}
-            onOpenExpenseModal={exp => {
-              setEditingExpense(exp || null);
-              setIsExpenseModalOpen(true);
-            }}
-            onOpenAddTransactionModal={(type, cat) => {
-              setEditingTransaction(null);
-              setInitialType(type || 'deposit');
-              setInitialContributor('joint');
-              setInitialCategory(cat || 'รายได้พิเศษ');
-              setIsAddModalOpen(true);
-            }}
-            onToggleExpensePaid={handleToggleExpensePaid}
-            onUpdateExpenseBill={handleUpdateExpenseBill}
-            onUpdateMonthExpenses={handleUpdateMonthExpenses}
-            onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
-            onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
-            onDeleteExpense={handleDeleteExpense}
-            onEditTransaction={tx => {
-              setEditingTransaction(tx);
-              setIsAddModalOpen(true);
-            }}
-            onDeleteTransaction={handleDeleteTransaction}
-            onForceResetNewMonth={handleForceResetMonthlyExpenses}
-          />
-        )}
+        {/* Main Content: 4 Pages */}
+        <main className="flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-7 pb-24 sm:pb-8">
+          
+          {/* 1. หน้า Dashboard สรุปภาพรวม & กราฟแนวโน้ม 5 ตัว */}
+          {activePage === 'dashboard' && (
+            <DashboardView
+              settings={settings}
+              expenses={expenses}
+              transactions={transactions}
+              onNavigateToTab={setActivePage}
+            />
+          )}
 
-        {/* 3. หน้าเงินออม & เป้าหมายครอบครัว */}
-        {activePage === 'savings' && (
-          <SavingsView
-            settings={settings}
-            goals={goals}
-            transactions={transactions}
-            onQuickAdd={handleQuickAdd}
-            onQuickWithdraw={handleQuickWithdraw}
-            onOpenCustomAdd={(contributorId, fund, type) => {
-              setEditingTransaction(null);
-              setInitialType(type || 'deposit');
-              setInitialContributor(contributorId || 'joint');
-              setInitialGoalId(undefined);
-              setInitialFund(fund || 'operating');
-              setInitialCategory(undefined);
-              setIsAddModalOpen(true);
-            }}
-            onUpdatePresets={handleUpdatePresets}
-            onOpenGoalModal={goal => {
-              setEditingGoal(goal || null);
-              setIsGoalModalOpen(true);
-            }}
-            onDeleteGoal={handleDeleteGoal}
-            onOpenDepositForGoal={goalId => {
-              setEditingTransaction(null);
-              setInitialType('goal_allocation');
-              setInitialContributor('joint');
-              setInitialGoalId(goalId);
-              setIsAddModalOpen(true);
-            }}
-            onEditTransaction={tx => {
-              setEditingTransaction(tx);
-              setIsAddModalOpen(true);
-            }}
-            onDeleteTransaction={handleDeleteTransaction}
-          />
-        )}
+          {/* 2. หน้าลงรายละเอียดรายเดือน เป็นตารางรายรับ-รายจ่าย */}
+          {activePage === 'monthly_ledger' && (
+            <MonthlyLedgerView
+              settings={settings}
+              expenses={expenses}
+              transactions={transactions}
+              onOpenExpenseModal={exp => {
+                setEditingExpense(exp || null);
+                setIsExpenseModalOpen(true);
+              }}
+              onOpenAddTransactionModal={(type, cat) => {
+                setEditingTransaction(null);
+                setInitialType(type || 'deposit');
+                setInitialContributor('joint');
+                setInitialCategory(cat || 'รายได้พิเศษ');
+                setIsAddModalOpen(true);
+              }}
+              onToggleExpensePaid={handleToggleExpensePaid}
+              onUpdateExpenseBill={handleUpdateExpenseBill}
+              onUpdateMonthExpenses={handleUpdateMonthExpenses}
+              onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
+              onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
+              onDeleteExpense={handleDeleteExpense}
+              onEditTransaction={tx => {
+                setEditingTransaction(tx);
+                setIsAddModalOpen(true);
+              }}
+              onDeleteTransaction={handleDeleteTransaction}
+              onForceResetNewMonth={handleForceResetMonthlyExpenses}
+            />
+          )}
 
-        {/* 4. หน้าแผนลงทุนและภาษี */}
-        {activePage === 'investment_tax' && (
-          <InvestmentTaxView
-            settings={settings}
-            onUpdateSettings={setSettings}
-            onShowToast={showToast}
-          />
-        )}
+          {/* 3. หน้าเงินออม & เป้าหมายครอบครัว */}
+          {activePage === 'savings' && (
+            <SavingsView
+              settings={settings}
+              goals={goals}
+              transactions={transactions}
+              onQuickAdd={handleQuickAdd}
+              onQuickWithdraw={handleQuickWithdraw}
+              onOpenCustomAdd={(contributorId, fund, type) => {
+                setEditingTransaction(null);
+                setInitialType(type || 'deposit');
+                setInitialContributor(contributorId || 'joint');
+                setInitialGoalId(undefined);
+                setInitialFund(fund || 'operating');
+                setInitialCategory(undefined);
+                setIsAddModalOpen(true);
+              }}
+              onUpdatePresets={handleUpdatePresets}
+              onOpenGoalModal={goal => {
+                setEditingGoal(goal || null);
+                setIsGoalModalOpen(true);
+              }}
+              onDeleteGoal={handleDeleteGoal}
+              onOpenDepositForGoal={goalId => {
+                setEditingTransaction(null);
+                setInitialType('goal_allocation');
+                setInitialContributor('joint');
+                setInitialGoalId(goalId);
+                setIsAddModalOpen(true);
+              }}
+              onEditTransaction={tx => {
+                setEditingTransaction(tx);
+                setIsAddModalOpen(true);
+              }}
+              onDeleteTransaction={handleDeleteTransaction}
+            />
+          )}
 
-      </main>
+          {/* 4. หน้าแผนลงทุนและภาษี */}
+          {activePage === 'investment_tax' && (
+            <InvestmentTaxView
+              settings={settings}
+              onUpdateSettings={setSettings}
+              onShowToast={showToast}
+            />
+          )}
+
+        </main>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-emerald-900/10 dark:border-slate-800/80 bg-white/70 dark:bg-slate-950/40 py-6 text-xs text-slate-600 dark:text-slate-500 text-center transition-colors pb-24 sm:pb-6">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="max-w-[1850px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-slate-700 dark:text-slate-300">Household Savings & Financial Planner</span>
             <span>•</span>

@@ -92,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0B0F19]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 transition-colors shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1850px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             
             {/* Logo & Household Title */}
@@ -253,42 +253,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           </div>
         </div>
-
-        {/* 4 Main Page Navigation Tabs Bar (Desktop & Tablet) */}
-        <div className="bg-slate-50/95 dark:bg-[#0E1422]/95 border-t border-slate-200/80 dark:border-slate-800/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-3 py-2 overflow-x-auto no-scrollbar">
-              {navItems.map(item => {
-                const isActive = activePage === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectPage(item.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                      isActive
-                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30 scale-[1.02]'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
-                    }`}>
-                      {item.number}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
       </header>
 
       {/* Mobile Fixed Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-white/95 dark:bg-[#0B0F19]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 shadow-2xl flex items-center justify-around">
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 dark:bg-[#0B0F19]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 shadow-2xl flex items-center justify-around">
         {navItems.map(item => {
           const isActive = activePage === item.id;
           return (
