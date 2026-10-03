@@ -96,6 +96,12 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonthKey);
 
+  // 🔄 Table Orientation: 'transposed' (months as columns, categories as rows) vs 'vertical' (original)
+  const [tableOrientation, setTableOrientation] = useState<'transposed' | 'vertical'>('transposed');
+
+  // Selected year for transposed view
+  const [selectedYear, setSelectedYear] = useState<string>(() => currentMonthKey.slice(0, 4));
+
   // Table display mode for Expenses: 'fit' (100% width, no horizontal scroll) vs 'full' (all bill columns)
   const [expenseTableViewMode, setExpenseTableViewMode] = useState<'fit' | 'full'>('fit');
   // Expanded row ID for month details in fit mode
@@ -125,6 +131,73 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     setCurrentInputB((saved?.person_b ?? baseIncomeB).toString());
     setCurrentInputOther((saved?.other ?? 0).toString());
   }, [settings.monthlyIncomes, currentMonthKey, baseIncomeA, baseIncomeB]);
+
+  // 📝 Current Month Numeric Expense Inputs (Request 2: "รายจ่ายตามรูป ต้องมีช่องใส่เป็นตัวเลขได้")
+  const [currentExpenseInputs, setCurrentExpenseInputs] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    expenses.forEach(e => {
+      const amt = getExpenseAmountForMonth(e, currentMonthKey);
+      init[e.id] = amt > 0 ? amt.toString() : (e.amount > 0 ? e.amount.toString() : '');
+    });
+    return init;
+  });
+
+  // Sync with expense changes
+  useEffect(() => {
+    setCurrentExpenseInputs(prev => {
+      const next = { ...prev };
+      let changed = false;
+      expenses.forEach(e => {
+        if (next[e.id] === undefined) {
+          const amt = getExpenseAmountForMonth(e, currentMonthKey);
+          next[e.id] = amt > 0 ? amt.toString() : (e.amount > 0 ? e.amount.toString() : '');
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [expenses, currentMonthKey]);
+
+  const handleExpenseInputChange = (id: string, val: string) => {
+    setCurrentExpenseInputs(prev => ({
+      ...prev,
+      [id]: val,
+    }));
+  };
+
+  const handleExpenseInputBlur = (id: string) => {
+    const val = currentExpenseInputs[id];
+    if (val !== undefined && val.trim() !== '') {
+      const num = parseFloat(val);
+      if (!isNaN(num) && num >= 0) {
+        onUpdateExpenseBill(id, num);
+      }
+    }
+  };
+
+  const handleSaveAllCurrentExpenses = () => {
+    expenses.forEach(e => {
+      const val = currentExpenseInputs[e.id];
+      if (val !== undefined && val.trim() !== '') {
+        const num = parseFloat(val);
+        if (!isNaN(num) && num >= 0) {
+          onUpdateExpenseBill(e.id, num);
+        }
+      }
+    });
+  };
+
+  // Live expense calculation for current month based on real-time numeric inputs
+  const liveCurrentExpenseTotal = useMemo(() => {
+    return expenses.reduce((acc, e) => {
+      const raw = currentExpenseInputs[e.id];
+      if (raw !== undefined && raw.trim() !== '') {
+        const num = parseFloat(raw);
+        return acc + (isNaN(num) ? 0 : num);
+      }
+      return acc + getExpenseAmountForMonth(e, currentMonthKey);
+    }, 0);
+  }, [expenses, currentExpenseInputs, currentMonthKey]);
 
   // Inline income editing modal/state for other historical months
   const [editingIncomeMonth, setEditingIncomeMonth] = useState<string | null>(null);
@@ -321,12 +394,147 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     [recurringItemsSelectedMonth]
   );
 
+  // Available unique years in dataset
+  const availableYears = useMemo(() => {
+    const ySet = new Set<string>();
+    allRecordedMonths.forEach(m => {
+      const y = m.slice(0, 4);
+      if (y) ySet.add(y);
+    });
+    return Array.from(ySet).sort().reverse();
+  }, [allRecordedMonths]);
+
+  // Transposed months based on selectedYear, searchTerm, and sortOrder
+  const transposedMonths = useMemo(() => {
+    let list = allRecordedMonths;
+    if (selectedYear !== 'all') {
+      list = list.filter(m => m.startsWith(selectedYear));
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(m => {
+        const label = formatSpreadsheetMonth(m).toLowerCase();
+        return label.includes(q) || m.includes(q);
+      });
+    }
+    if (sortOrder === 'latest') {
+      return [...list].reverse();
+    }
+    return list;
+  }, [allRecordedMonths, selectedYear, searchTerm, sortOrder]);
+
+  // Map of income data by monthKey for instant O(1) lookup
+  const incomeByMonthMap = useMemo(() => {
+    const map: Record<string, MonthIncomeData> = {};
+    allIncomeRows.forEach(r => {
+      map[r.monthKey] = r;
+    });
+    return map;
+  }, [allIncomeRows]);
+
+  // Summary calculations for Transposed Income Table across transposedMonths
+  const transposedIncomeSummary = useMemo(() => {
+    let sumA = 0;
+    let sumB = 0;
+    let sumOther = 0;
+    let sumTotal = 0;
+    let sumExpense = 0;
+    let sumNet = 0;
+
+    transposedMonths.forEach(mKey => {
+      const d = incomeByMonthMap[mKey];
+      if (d) {
+        sumA += d.person_a;
+        sumB += d.person_b;
+        sumOther += d.other;
+        sumTotal += d.totalIncome;
+        sumExpense += d.totalExpense;
+        sumNet += d.netBalance;
+      }
+    });
+
+    const count = transposedMonths.length || 1;
+    return {
+      sumA,
+      avgA: sumA / count,
+      sumB,
+      avgB: sumB / count,
+      sumOther,
+      avgOther: sumOther / count,
+      sumTotal,
+      avgTotal: sumTotal / count,
+      sumExpense,
+      avgExpense: sumExpense / count,
+      sumNet,
+      avgNet: sumNet / count,
+      count,
+    };
+  }, [transposedMonths, incomeByMonthMap]);
+
+  // Map of expense data by monthKey for instant O(1) lookup
+  const expenseByMonthMap = useMemo(() => {
+    const map: Record<string, MonthExpenseData> = {};
+    allExpenseRows.forEach(r => {
+      map[r.monthKey] = r;
+    });
+    return map;
+  }, [allExpenseRows]);
+
+  // Summary calculations for Transposed Expense Table across transposedMonths
+  const transposedExpenseSummary = useMemo(() => {
+    let sumEst = 0;
+    let sumAct = 0;
+    let sumAdhoc = 0;
+
+    const itemTotals: Record<string, number> = {};
+    expenses.forEach(e => {
+      itemTotals[e.id] = 0;
+    });
+
+    transposedMonths.forEach(mKey => {
+      const d = expenseByMonthMap[mKey];
+      if (d) {
+        sumEst += d.estimatedTotal;
+        const actualVal = mKey === currentMonthKey ? liveCurrentExpenseTotal : d.actualTotal;
+        sumAct += actualVal;
+        sumAdhoc += d.adhocTotal;
+
+        expenses.forEach(e => {
+          const itemVal =
+            mKey === currentMonthKey
+              ? (parseFloat(currentExpenseInputs[e.id] ?? '') || getExpenseAmountForMonth(e, currentMonthKey))
+              : (d.items[e.id] || 0);
+          itemTotals[e.id] = (itemTotals[e.id] || 0) + itemVal;
+        });
+      }
+    });
+
+    const count = transposedMonths.length || 1;
+    return {
+      sumEst,
+      avgEst: sumEst / count,
+      sumAct,
+      avgAct: sumAct / count,
+      sumDiff: sumEst - sumAct,
+      sumAdhoc,
+      itemTotals,
+      count,
+    };
+  }, [
+    transposedMonths,
+    expenseByMonthMap,
+    expenses,
+    currentMonthKey,
+    liveCurrentExpenseTotal,
+    currentExpenseInputs,
+  ]);
+
   // Live calculation for current month quick fill
   const parsedCurrentA = parseFloat(currentInputA) || 0;
   const parsedCurrentB = parseFloat(currentInputB) || 0;
   const parsedCurrentOther = parseFloat(currentInputOther) || 0;
   const currentLiveTotalIncome = parsedCurrentA + parsedCurrentB + parsedCurrentOther;
-  const currentLiveNetBalance = currentLiveTotalIncome - (currentExpenseRow?.actualTotal || 0);
+  const currentLiveNetBalance = currentLiveTotalIncome - (liveCurrentExpenseTotal || currentExpenseRow?.actualTotal || 0);
 
   // Handle Save Current Month Income
   const handleSaveCurrentMonthIncome = () => {
@@ -540,60 +748,131 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         </span>
       </div>
 
-      {/* Toolbar: Search & Sort Order */}
+      {/* Toolbar: Search, Year Filter & Orientation Switch */}
       {(activeTab === 'incomes' || activeTab === 'expenses') && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder="ค้นหาเดือน เช่น มิ.ย.-2021, 2024..."
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+        <div className="flex flex-col gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Left: Search box */}
+            <div className="relative flex-1 md:max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="ค้นหาเดือน เช่น มิ.ย.-2021, 2024..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
 
-          <div className="flex items-center justify-end gap-2 text-xs">
-            {activeTab === 'expenses' && (
+            {/* Right: Orientation toggle and sort */}
+            <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 text-xs">
+              
+              {/* Orientation Switch: 🔄 สลับแถว⇄คอลัมน์ (Default) vs 📋 ตารางแนวตั้ง */}
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 <button
-                  onClick={() => setExpenseTableViewMode('fit')}
-                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                    expenseTableViewMode === 'fit'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  type="button"
+                  onClick={() => setTableOrientation('transposed')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    tableOrientation === 'transposed'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
+                  title="สลับคอลัมน์เป็นแถว จากแถวเป็นคอลัมน์ (เดือนเป็นคอลัมน์ แนวนอน)"
                 >
-                  พอดีจอ (ไม่มีสไลด์)
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>สลับแถว⇄คอลัมน์ (แนวนอน)</span>
                 </button>
                 <button
-                  onClick={() => setExpenseTableViewMode('full')}
-                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                    expenseTableViewMode === 'full'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                  type="button"
+                  onClick={() => setTableOrientation('vertical')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    tableOrientation === 'vertical'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
+                  title="ตารางแนวตั้งเดิม (เดือนเป็นแถว)"
                 >
-                  ตารางเต็ม ({expenses.length} บิล)
+                  <Table className="w-3.5 h-3.5" />
+                  <span>ตารางแนวตั้ง</span>
                 </button>
               </div>
-            )}
 
-            <button
-              onClick={() =>
-                setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
-              }
-              className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1.5"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
-              <span>
-                {sortOrder === 'chronological'
-                  ? 'เรียงตามเวลา (เก่า ➔ ใหม่)'
-                  : 'เรียงล่าสุดก่อน (ใหม่ ➔ เก่า)'}
-              </span>
-            </button>
+              {activeTab === 'expenses' && tableOrientation === 'vertical' && (
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                  <button
+                    onClick={() => setExpenseTableViewMode('fit')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                      expenseTableViewMode === 'fit'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    พอดีจอ
+                  </button>
+                  <button
+                    onClick={() => setExpenseTableViewMode('full')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                      expenseTableViewMode === 'full'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    ตารางเต็ม
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() =>
+                  setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
+                }
+                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1.5"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
+                <span>
+                  {sortOrder === 'chronological'
+                    ? 'เก่า ➔ ใหม่'
+                    : 'ใหม่ ➔ เก่า'}
+                </span>
+              </button>
+            </div>
           </div>
+
+          {/* Year selector filter pills for Transposed orientation */}
+          {tableOrientation === 'transposed' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">
+                กรองดูตามปี:
+              </span>
+              {availableYears.map(yr => (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => setSelectedYear(yr)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                    selectedYear === yr
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {yr} {yr === currentMonthKey.slice(0, 4) ? '(ปีปัจจุบัน)' : ''}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSelectedYear('all')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  selectedYear === 'all'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                ทุกปี ({allRecordedMonths.length} เดือน)
+              </button>
+            </div>
+          )}
+
         </div>
       )}
 
@@ -700,170 +979,482 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
             </div>
           </div>
 
-          {/* 1.2 ตารางรายรับ (ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวา) */}
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
-            <div className="overflow-y-auto max-h-[700px] w-full">
-              <table className="w-full table-fixed text-left text-xs border-collapse">
-                
-                {/* Fixed Proportional Columns that guarantee 100% screen fit */}
-                <colgroup>
-                  <col className="w-[6%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[6%]" />
-                </colgroup>
+          {/* 1.2 ตารางรายรับ (สลับแถว-คอลัมน์ หรือ แนวตั้ง) */}
+          {tableOrientation === 'transposed' ? (
+            /* TRANSPOSED INCOMES TABLE (เดือนเป็นคอลัมน์ แหล่งรายรับเป็นแถว) */
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+              <div className="overflow-x-auto max-w-full">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
+                    <tr>
+                      {/* Sticky Left Header */}
+                      <th className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 min-w-[210px] w-[210px] border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]">
+                        <div className="flex items-center justify-between">
+                          <span>รายการ / แหล่งรายรับ</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            ({transposedMonths.length} ด.)
+                          </span>
+                        </div>
+                      </th>
 
-                {/* Table Header matching Image 1 */}
-                <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
-                  <tr>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
-                      ลำดับ
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
-                      วันที่
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
-                      คงเหลือ
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
-                      เจ
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
-                      เมย์
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
-                      อื่นๆ
-                    </th>
-                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right font-black text-emerald-800 dark:text-emerald-300">
-                      รวมรายรับ
-                    </th>
-                    <th className="py-3 px-1 text-center">
-                      แก้ไข
-                    </th>
-                  </tr>
-                </thead>
+                      {/* Month Columns */}
+                      {transposedMonths.map(mKey => {
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <th
+                            key={mKey}
+                            className={`py-3 px-3 min-w-[105px] text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap ${
+                              isCurrent
+                                ? 'bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-black'
+                                : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-end">
+                              <span>{formatSpreadsheetMonth(mKey)}</span>
+                              {isCurrent && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold mt-0.5 shadow-2xs">
+                                  ปัจจุบัน
+                                </span>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
 
-                {/* Table Body matching Image 1 */}
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
-                  {displayIncomeRows.map(row => {
-                    const isZeroNet = Math.abs(row.netBalance) < 0.01;
-                    const isNegNet = row.netBalance < 0;
-                    const isCurrent = row.monthKey === currentMonthKey;
+                      {/* Summary Columns */}
+                      <th className="py-3 px-3 min-w-[115px] text-right font-black text-emerald-900 dark:text-emerald-300 border-r border-slate-200 dark:border-slate-700 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                        รวมทั้งสิ้น
+                      </th>
+                      <th className="py-3 px-3 min-w-[105px] text-right font-black text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                        เฉลี่ย/เดือน
+                      </th>
+                    </tr>
+                  </thead>
 
-                    return (
-                      <tr
-                        key={row.monthKey}
-                        className={`transition-colors ${
-                          isCurrent
-                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 font-bold hover:bg-emerald-100/70'
-                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                    {/* ROW 1: เจ */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-900 dark:text-slate-100 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                          <span>{memberA.name || 'เจ'} (รายรับคนหาร A)</span>
+                        </div>
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap ${
+                              isCurrent ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {isCurrent ? (
+                              <input
+                                type="number"
+                                step="any"
+                                value={currentInputA}
+                                onChange={e => setCurrentInputA(e.target.value)}
+                                onBlur={handleSaveCurrentMonthIncome}
+                                className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded-lg bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            ) : (
+                              formatCurrencySpreadsheet(d?.person_a ?? 0)
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.sumA)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-600 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.avgA)}
+                      </td>
+                    </tr>
+
+                    {/* ROW 2: เมย์ */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-900 dark:text-slate-100 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+                          <span>{memberB.name || 'เมย์'} (รายรับคนหาร B)</span>
+                        </div>
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap ${
+                              isCurrent ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {isCurrent ? (
+                              <input
+                                type="number"
+                                step="any"
+                                value={currentInputB}
+                                onChange={e => setCurrentInputB(e.target.value)}
+                                onBlur={handleSaveCurrentMonthIncome}
+                                className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded-lg bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            ) : (
+                              formatCurrencySpreadsheet(d?.person_b ?? 0)
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.sumB)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-600 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.avgB)}
+                      </td>
+                    </tr>
+
+                    {/* ROW 3: อื่นๆ */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-slate-700 dark:text-slate-300 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          <span>อื่นๆ / รายได้พิเศษ</span>
+                        </div>
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap ${
+                              isCurrent ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            {isCurrent ? (
+                              <input
+                                type="number"
+                                step="any"
+                                value={currentInputOther}
+                                onChange={e => setCurrentInputOther(e.target.value)}
+                                onBlur={handleSaveCurrentMonthIncome}
+                                className="w-20 px-1 py-0.5 text-xs text-right font-bold rounded-lg bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            ) : (
+                              formatCurrencySpreadsheet(d?.other ?? 0)
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.sumOther)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.avgOther)}
+                      </td>
+                    </tr>
+
+                    {/* ROW 4: รวมรายรับทั้งหมด (Total Income) */}
+                    <tr className="bg-emerald-100/60 dark:bg-emerald-950/40 border-y-2 border-emerald-300 dark:border-emerald-700/60 font-black">
+                      <td className="sticky left-0 z-10 bg-emerald-100 dark:bg-emerald-950 py-3.5 px-4 font-black text-emerald-950 dark:text-emerald-100 border-r-2 border-emerald-300 dark:border-emerald-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                        💰 รวมรายรับทั้งหมด
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        const val = isCurrent ? currentLiveTotalIncome : (d?.totalIncome ?? 0);
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-3 px-3 text-right border-r border-emerald-200/70 dark:border-emerald-900/40 whitespace-nowrap font-black text-emerald-900 dark:text-emerald-200 ${
+                              isCurrent ? 'bg-emerald-200/50 dark:bg-emerald-900/50 text-emerald-950 dark:text-emerald-100 font-extrabold' : ''
+                            }`}
+                          >
+                            {formatCurrency(val)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-3 text-right font-black text-emerald-950 dark:text-emerald-100 border-r border-emerald-300 dark:border-emerald-800 bg-emerald-200/60 dark:bg-emerald-900/60 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.sumTotal)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-emerald-900 dark:text-emerald-200 bg-emerald-200/60 dark:bg-emerald-900/60 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.avgTotal)}
+                      </td>
+                    </tr>
+
+                    {/* ROW 5: รวมรายจ่ายจริง (Total Expense) */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-rose-700 dark:text-rose-400 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        💸 รายจ่ายจริงรวม
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        const val = isCurrent ? liveCurrentExpenseTotal : (d?.totalExpense ?? 0);
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap ${
+                              isCurrent ? 'bg-rose-50/50 dark:bg-rose-950/20' : ''
+                            }`}
+                          >
+                            {formatCurrency(val)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-rose-700 dark:text-rose-400 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.sumExpense)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-rose-600/80 dark:text-rose-400/80 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedIncomeSummary.avgExpense)}
+                      </td>
+                    </tr>
+
+                    {/* ROW 6: คงเหลือสุทธิ (Net Balance) */}
+                    <tr className="bg-slate-100/70 dark:bg-slate-800/70 border-t-2 border-slate-300 dark:border-slate-700 font-black">
+                      <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 font-black text-slate-900 dark:text-white border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                        ⚖️ คงเหลือสุทธิ (Net)
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = incomeByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        const net = isCurrent ? currentLiveNetBalance : (d?.netBalance ?? 0);
+                        const isZero = Math.abs(net) < 0.01;
+                        const isNeg = net < 0;
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-3 px-3 text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap font-black ${
+                              isZero
+                                ? 'text-slate-400'
+                                : isNeg
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-slate-900 dark:text-slate-100'
+                            } ${isCurrent ? 'bg-emerald-100/40 dark:bg-emerald-950/30 font-extrabold' : ''}`}
+                          >
+                            {formatCurrencySpreadsheet(net)}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={`py-3 px-3 text-right font-black border-r border-slate-300 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 whitespace-nowrap ${
+                          transposedIncomeSummary.sumNet < 0 ? 'text-rose-600' : 'text-slate-900 dark:text-white'
                         }`}
                       >
-                        {/* 1. ลำดับ */}
-                        <td className="py-2.5 px-2 text-center text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
-                          {isCurrent ? (
-                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] inline-flex items-center justify-center">
-                              {row.index}
-                            </span>
-                          ) : (
-                            row.index
-                          )}
-                        </td>
+                        {formatCurrencySpreadsheet(transposedIncomeSummary.sumNet)}
+                      </td>
+                      <td
+                        className={`py-3 px-3 text-right font-black bg-slate-200/50 dark:bg-slate-700/50 whitespace-nowrap ${
+                          transposedIncomeSummary.avgNet < 0 ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {formatCurrencySpreadsheet(transposedIncomeSummary.avgNet)}
+                      </td>
+                    </tr>
 
-                        {/* 2. วันที่ / เดือน (มิ.ย.-2021) */}
-                        <td className="py-2.5 px-2 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 truncate">
-                          <div className="flex items-center justify-center gap-1">
-                            <span>{row.monthLabel}</span>
-                            {isCurrent && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold">
-                                ปัจจุบัน
-                              </span>
+                    {/* ROW 7: จัดการ / แก้ไข */}
+                    <tr className="bg-white dark:bg-slate-900">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-2.5 px-4 font-bold text-slate-500 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        ⚙️ จัดการยอด
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <td key={mKey} className="py-2.5 px-2 text-center border-r border-slate-100 dark:border-slate-800">
+                            {isCurrent ? (
+                              <button
+                                onClick={handleSaveCurrentMonthIncome}
+                                className="px-2 py-1 text-[10px] font-bold rounded-md bg-emerald-600 text-white hover:bg-emerald-500 shadow-2xs transition"
+                              >
+                                💾 บันทึก
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenEditIncome(mKey)}
+                                className="p-1 text-slate-400 hover:text-emerald-600 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                title={`แก้ไขยอดรายรับรอบเดือน ${mKey}`}
+                              >
+                                <Edit2 className="w-3.5 h-3.5 mx-auto" />
+                              </button>
                             )}
-                          </div>
-                        </td>
+                          </td>
+                        );
+                      })}
+                      <td colSpan={2} className="py-2.5 px-3 text-center text-slate-400 text-[10px]">
+                        -
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* 1.2 ตารางแนวตั้งเดิม (VERTICAL INCOMES TABLE) */
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+              <div className="overflow-y-auto max-h-[700px] w-full">
+                <table className="w-full table-fixed text-left text-xs border-collapse">
+                  
+                  {/* Fixed Proportional Columns that guarantee 100% screen fit */}
+                  <colgroup>
+                    <col className="w-[6%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[6%]" />
+                  </colgroup>
 
-                        {/* 3. คงเหลือ (Net balance e.g. ฿ -, ฿ 530.00, ฿ (846.60)) */}
-                        <td
-                          className={`py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-medium truncate ${
-                            isZeroNet
-                              ? 'text-slate-400 dark:text-slate-500'
-                              : isNegNet
-                              ? 'text-rose-600 dark:text-rose-400 font-bold'
-                              : 'text-slate-800 dark:text-slate-200'
+                  {/* Table Header matching Image 1 */}
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
+                    <tr>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
+                        ลำดับ
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
+                        วันที่
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
+                        คงเหลือ
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
+                        เจ
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
+                        เมย์
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
+                        อื่นๆ
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right font-black text-emerald-800 dark:text-emerald-300">
+                        รวมรายรับ
+                      </th>
+                      <th className="py-3 px-1 text-center">
+                        แก้ไข
+                      </th>
+                    </tr>
+                  </thead>
+
+                  {/* Table Body matching Image 1 */}
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
+                    {displayIncomeRows.map(row => {
+                      const isZeroNet = Math.abs(row.netBalance) < 0.01;
+                      const isNegNet = row.netBalance < 0;
+                      const isCurrent = row.monthKey === currentMonthKey;
+
+                      return (
+                        <tr
+                          key={row.monthKey}
+                          className={`transition-colors ${
+                            isCurrent
+                              ? 'bg-emerald-50/70 dark:bg-emerald-950/30 font-bold hover:bg-emerald-100/70'
+                              : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
                           }`}
                         >
-                          {formatCurrencySpreadsheet(row.netBalance)}
-                        </td>
+                          {/* 1. ลำดับ */}
+                          <td className="py-2.5 px-2 text-center text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                            {isCurrent ? (
+                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] inline-flex items-center justify-center">
+                                {row.index}
+                              </span>
+                            ) : (
+                              row.index
+                            )}
+                          </td>
 
-                        {/* 4. เจ (Je) */}
-                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {formatCurrencySpreadsheet(row.person_a)}
-                        </td>
+                          {/* 2. วันที่ / เดือน (มิ.ย.-2021) */}
+                          <td className="py-2.5 px-2 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 truncate">
+                            <div className="flex items-center justify-center gap-1">
+                              <span>{row.monthLabel}</span>
+                              {isCurrent && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold">
+                                  ปัจจุบัน
+                                </span>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* 5. เมย์ (May) */}
-                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {formatCurrencySpreadsheet(row.person_b)}
-                        </td>
-
-                        {/* 6. อื่นๆ (Other) */}
-                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 truncate">
-                          {formatCurrencySpreadsheet(row.other)}
-                        </td>
-
-                        {/* 7. รวมรายรับ (Total Income) */}
-                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-black text-emerald-600 dark:text-emerald-400 truncate">
-                          {formatCurrency(row.totalIncome)}
-                        </td>
-
-                        {/* 8. แก้ไข (Edit) */}
-                        <td className="py-2.5 px-1 text-center">
-                          <button
-                            onClick={() => handleOpenEditIncome(row.monthKey)}
-                            className="p-1 text-slate-400 hover:text-emerald-600 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                            title="แก้ไขยอดรายรับของเดือนนี้"
+                          {/* 3. คงเหลือ (Net balance e.g. ฿ -, ฿ 530.00, ฿ (846.60)) */}
+                          <td
+                            className={`py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-medium truncate ${
+                              isZeroNet
+                                ? 'text-slate-400 dark:text-slate-500'
+                                : isNegNet
+                                ? 'text-rose-600 dark:text-rose-400 font-bold'
+                                : 'text-slate-800 dark:text-slate-200'
+                            }`}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                            {formatCurrencySpreadsheet(row.netBalance)}
+                          </td>
 
-                {/* Table Footer */}
-                <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
-                  <tr>
-                    <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
-                      รวมทั้งหมด ({allIncomeRows.length} เดือน)
-                    </td>
-                    <td className="py-3 px-2 text-right text-slate-500">
-                      -
-                    </td>
-                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
-                      {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_a, 0))}
-                    </td>
-                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
-                      {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_b, 0))}
-                    </td>
-                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
-                      {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.other, 0))}
-                    </td>
-                    <td className="py-3 px-2 text-right text-emerald-600 dark:text-emerald-400 font-black truncate">
-                      {formatCurrency(totalIncomeAllMonths)}
-                    </td>
-                    <td className="py-3 px-1 text-center text-slate-400">
-                      -
-                    </td>
-                  </tr>
-                </tfoot>
+                          {/* 4. เจ (Je) */}
+                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {formatCurrencySpreadsheet(row.person_a)}
+                          </td>
 
-              </table>
+                          {/* 5. เมย์ (May) */}
+                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {formatCurrencySpreadsheet(row.person_b)}
+                          </td>
+
+                          {/* 6. อื่นๆ (Other) */}
+                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 truncate">
+                            {formatCurrencySpreadsheet(row.other)}
+                          </td>
+
+                          {/* 7. รวมรายรับ (Total Income) */}
+                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-black text-emerald-600 dark:text-emerald-400 truncate">
+                            {formatCurrency(row.totalIncome)}
+                          </td>
+
+                          {/* 8. แก้ไข (Edit) */}
+                          <td className="py-2.5 px-1 text-center">
+                            <button
+                              onClick={() => handleOpenEditIncome(row.monthKey)}
+                              className="p-1 text-slate-400 hover:text-emerald-600 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title="แก้ไขยอดรายรับของเดือนนี้"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* Table Footer */}
+                  <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
+                    <tr>
+                      <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
+                        รวมทั้งหมด ({allIncomeRows.length} เดือน)
+                      </td>
+                      <td className="py-3 px-2 text-right text-slate-500">
+                        -
+                      </td>
+                      <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
+                        {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_a, 0))}
+                      </td>
+                      <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
+                        {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_b, 0))}
+                      </td>
+                      <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
+                        {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.other, 0))}
+                      </td>
+                      <td className="py-3 px-2 text-right text-emerald-600 dark:text-emerald-400 font-black truncate">
+                        {formatCurrency(totalIncomeAllMonths)}
+                      </td>
+                      <td className="py-3 px-1 text-center text-slate-400">
+                        -
+                      </td>
+                    </tr>
+                  </tfoot>
+
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -899,73 +1490,422 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block font-medium">จ่ายจริงรอบนี้</span>
                   <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
-                    {formatCurrency(currentExpenseRow?.actualTotal || 0)}
+                    {formatCurrency(liveCurrentExpenseTotal)}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block font-medium">ผลต่าง</span>
                   <span
                     className={`text-sm sm:text-base font-black ${
-                      (currentExpenseRow?.difference || 0) < 0
+                      (currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal < 0
                         ? 'text-rose-600'
                         : 'text-emerald-600 dark:text-emerald-400'
                     }`}
                   >
-                    {(currentExpenseRow?.difference || 0) < 0
-                      ? `-${formatCurrency(Math.abs(currentExpenseRow?.difference || 0), false)}`
-                      : `+${formatCurrency(currentExpenseRow?.difference || 0, false)}`}
+                    {(currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal < 0
+                      ? `-${formatCurrency(Math.abs((currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal), false)}`
+                      : `+${formatCurrency((currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal, false)}`}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Quick Bill Checkchips for current month */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-rose-200/50 dark:border-rose-900/30 text-xs">
-              <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">
-                  ตรวจบิลเดือนนี้:
-                </span>
+            {/* Quick Bill Inputs and Status for current month (Request 2: มีช่องใส่เป็นตัวเลขได้) */}
+            <div className="space-y-2.5 pt-2 border-t border-rose-200/50 dark:border-rose-900/30 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    ตรวจและกรอกยอดรายจ่ายรอบเดือนนี้:
+                  </span>
+                  <span className="text-[11px] text-slate-400 hidden sm:inline">
+                    (ใส่ตัวเลขยอดจริงแต่ละรายการได้ทันที บันทึกและคำนวณเข้าตารางอัตโนมัติ)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleSaveAllCurrentExpenses}
+                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>💾 บันทึกยอดบิลทั้งหมด</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('budget')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs whitespace-nowrap hover:opacity-90 transition shadow-xs"
+                  >
+                    จัดการประมาณการ & บิล ➔
+                  </button>
+                </div>
+              </div>
+
+              {/* Numerical Input Chips/Cards matching user image */}
+              <div className="flex items-center gap-2 overflow-x-auto py-1.5 max-w-full">
                 {expenses.map(item => {
-                  const amt = getExpenseAmountForMonth(item, currentMonthKey);
                   const isPaid =
                     item.lastPaidMonth === currentMonthKey ||
                     (currentMonthKey === getCurrentYearMonth() && item.isPaidThisMonth);
 
                   return (
-                    <button
+                    <div
                       key={item.id}
-                      type="button"
-                      onClick={() => onToggleExpensePaid(item.id)}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 transition whitespace-nowrap ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border transition shadow-2xs whitespace-nowrap flex-shrink-0 ${
                         isPaid
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-400'
                       }`}
                     >
-                      <span>{item.icon}</span>
-                      <span>{item.title}</span>
-                      {isPaid ? (
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      ) : (
-                        <span className="text-[10px] text-slate-400">({formatCurrency(amt, false)})</span>
-                      )}
-                    </button>
+                      <span className="text-base select-none">{item.icon}</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[125px] truncate" title={item.title}>
+                        {item.title}
+                      </span>
+
+                      {/* Number Input Field */}
+                      <div className="relative flex items-center ml-1">
+                        <span className="absolute left-2 text-[10px] text-slate-400 font-bold pointer-events-none select-none">฿</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={currentExpenseInputs[item.id] ?? ''}
+                          onChange={e => handleExpenseInputChange(item.id, e.target.value)}
+                          onBlur={() => handleExpenseInputBlur(item.id)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleExpenseInputBlur(item.id);
+                          }}
+                          placeholder="0.00"
+                          className="w-24 pl-5 pr-2 py-1 text-xs font-bold text-right rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        />
+                      </div>
+
+                      {/* Paid / Unpaid Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => onToggleExpensePaid(item.id)}
+                        className={`p-1.5 rounded-xl transition flex items-center gap-1 text-[11px] font-bold ${
+                          isPaid
+                            ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-500'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'
+                        }`}
+                        title={isPaid ? 'ชำระแล้ว (คลิกเพื่อยกเลิก)' : 'คลิกเพื่อระบุว่าชำระแล้ว'}
+                      >
+                        {isPaid ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                            <span className="text-[10px]">จ่ายแล้ว</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="text-[10px]">ยังไม่จ่าย</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
-
-              <button
-                onClick={() => setActiveTab('budget')}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs whitespace-nowrap hover:opacity-90 transition shadow-xs flex-shrink-0 self-start sm:self-auto"
-              >
-                จัดการประมาณการ & บิล ➔
-              </button>
             </div>
           </div>
 
-          {/* 2.2 ตารางรายจ่าย (ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวา) */}
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
-            <div className="overflow-y-auto max-h-[700px] w-full">
+          {/* 2.2 ตารางรายจ่าย (สลับแถว-คอลัมน์ หรือ แนวตั้ง) */}
+          {tableOrientation === 'transposed' ? (
+            /* TRANSPOSED EXPENSES TABLE (เดือนเป็นคอลัมน์ รายการรายจ่ายเป็นแถว) */
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+              <div className="overflow-x-auto max-w-full">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
+                    <tr>
+                      {/* Sticky Left Header */}
+                      <th className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 min-w-[220px] w-[220px] border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)]">
+                        <div className="flex items-center justify-between">
+                          <span>รายการรายจ่ายประจำ & บิล</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            ({expenses.length} รายการ)
+                          </span>
+                        </div>
+                      </th>
+
+                      {/* Month Columns */}
+                      {transposedMonths.map(mKey => {
+                        const isCurrent = mKey === currentMonthKey;
+                        return (
+                          <th
+                            key={mKey}
+                            className={`py-3 px-3 min-w-[110px] text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap ${
+                              isCurrent
+                                ? 'bg-rose-100/80 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200 font-black'
+                                : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-end">
+                              <span>{formatSpreadsheetMonth(mKey)}</span>
+                              {isCurrent && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-600 text-white font-bold mt-0.5 shadow-2xs">
+                                  ปัจจุบัน
+                                </span>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
+
+                      {/* Summary Columns Header */}
+                      <th className="py-3 px-3 min-w-[115px] text-right font-black text-rose-600 dark:text-rose-400 border-r border-slate-200 dark:border-slate-700 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                        รวมจ่ายจริง
+                      </th>
+                      <th className="py-3 px-3 min-w-[115px] text-right font-black text-amber-800 dark:text-amber-300 border-r border-slate-200 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-950/20 whitespace-nowrap">
+                        งบรวมช่วงนี้
+                      </th>
+                      <th className="py-3 px-3 min-w-[105px] text-right font-black text-slate-700 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-700/60 whitespace-nowrap">
+                        ผลต่างรวม
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
+                    {/* ROWS: Each expense item */}
+                    {expenses.map(expense => {
+                      const rowTotal = transposedExpenseSummary.itemTotals[expense.id] || 0;
+                      const estPerMonth = getExpenseEstimatedAmount(expense);
+                      const estTotalForPeriod = estPerMonth * transposedMonths.length;
+                      const diffForPeriod = estTotalForPeriod - rowTotal;
+
+                      return (
+                        <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          {/* Sticky Left: Expense Title & Details */}
+                          <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-2.5 px-4 font-bold border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base select-none">{expense.icon}</span>
+                              <div className="max-w-[150px] truncate">
+                                <div className="text-slate-900 dark:text-white font-bold truncate" title={expense.title}>
+                                  {expense.title}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  งบ {formatCurrency(estPerMonth, false)}/ด.
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Month Columns */}
+                          {transposedMonths.map(mKey => {
+                            const isCurrent = mKey === currentMonthKey;
+                            const d = expenseByMonthMap[mKey];
+                            const val = isCurrent
+                              ? (parseFloat(currentExpenseInputs[expense.id] ?? '') || getExpenseAmountForMonth(expense, currentMonthKey))
+                              : (d?.items[expense.id] || 0);
+
+                            return (
+                              <td
+                                key={mKey}
+                                className={`py-2 px-2.5 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap ${
+                                  isCurrent ? 'bg-rose-50/50 dark:bg-rose-950/20' : ''
+                                }`}
+                              >
+                                {isCurrent ? (
+                                  <div className="inline-flex items-center justify-end">
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={currentExpenseInputs[expense.id] ?? ''}
+                                      onChange={e => handleExpenseInputChange(expense.id, e.target.value)}
+                                      onBlur={() => handleExpenseInputBlur(expense.id)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') handleExpenseInputBlur(expense.id);
+                                      }}
+                                      className="w-20 px-1.5 py-0.5 text-xs text-right font-bold rounded-lg bg-rose-50/60 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className={val > 0 ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-300 dark:text-slate-600'}>
+                                    {val > 0 ? formatCurrency(val, false) : '-'}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+
+                          {/* Summary Columns */}
+                          <td className="py-2.5 px-3 text-right font-black text-rose-600 dark:text-rose-400 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                            {formatCurrency(rowTotal)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-amber-800 dark:text-amber-300 border-r border-slate-200 dark:border-slate-800 bg-amber-50/30 dark:bg-amber-950/20 whitespace-nowrap">
+                            {formatCurrency(estTotalForPeriod)}
+                          </td>
+                          <td className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${
+                            diffForPeriod < 0 ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {diffForPeriod < 0 ? `-${formatCurrency(Math.abs(diffForPeriod), false)}` : `+${formatCurrency(diffForPeriod, false)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* ROW: ย่อย / ถอนเงิน (Ad-hoc) */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-2.5 px-4 font-bold text-slate-600 dark:text-slate-400 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        🛒 รายจ่ายอื่นๆ / ถอนเงิน
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = expenseByMonthMap[mKey];
+                        const val = d?.adhocTotal || 0;
+                        return (
+                          <td key={mKey} className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 whitespace-nowrap">
+                            {val > 0 ? formatCurrency(val, false) : '-'}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedExpenseSummary.sumAdhoc)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-400 border-r border-slate-200 dark:border-slate-800 bg-amber-50/30 dark:bg-amber-950/20 whitespace-nowrap">
+                        -
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-400 whitespace-nowrap">
+                        -
+                      </td>
+                    </tr>
+
+                    {/* ROW: รวมรายจ่ายจริง (Total Actual Expense) - Highlighted */}
+                    <tr className="bg-rose-100/60 dark:bg-rose-950/40 border-y-2 border-rose-300 dark:border-rose-700/60 font-black">
+                      <td className="sticky left-0 z-10 bg-rose-100 dark:bg-rose-950 py-3.5 px-4 font-black text-rose-950 dark:text-rose-100 border-r-2 border-rose-300 dark:border-rose-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                        🔴 รวมรายจ่ายจริง
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const isCurrent = mKey === currentMonthKey;
+                        const d = expenseByMonthMap[mKey];
+                        const val = isCurrent ? liveCurrentExpenseTotal : (d?.actualTotal || 0);
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-3 px-3 text-right border-r border-rose-200/70 dark:border-rose-900/40 whitespace-nowrap font-black text-rose-600 dark:text-rose-400 ${
+                              isCurrent ? 'bg-rose-200/50 dark:bg-rose-900/50 font-extrabold' : ''
+                            }`}
+                          >
+                            {formatCurrency(val)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-3 text-right font-black text-rose-700 dark:text-rose-300 border-r border-rose-300 dark:border-rose-800 bg-rose-200/60 dark:bg-rose-900/60 whitespace-nowrap">
+                        {formatCurrency(transposedExpenseSummary.sumAct)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-amber-800 dark:text-amber-300 border-r border-rose-300 dark:border-rose-800 bg-amber-50/50 dark:bg-amber-950/20 whitespace-nowrap">
+                        {formatCurrency(transposedExpenseSummary.sumEst)}
+                      </td>
+                      <td className={`py-3 px-3 text-right font-black whitespace-nowrap ${
+                        transposedExpenseSummary.sumDiff < 0 ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        {transposedExpenseSummary.sumDiff < 0
+                          ? `-${formatCurrency(Math.abs(transposedExpenseSummary.sumDiff), false)}`
+                          : `+${formatCurrency(transposedExpenseSummary.sumDiff, false)}`}
+                      </td>
+                    </tr>
+
+                    {/* ROW: ยอดประมาณการรวม (Total Estimated Budget) */}
+                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-3 px-4 font-bold text-amber-800 dark:text-amber-300 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        🎯 ยอดประมาณการรวม
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = expenseByMonthMap[mKey];
+                        return (
+                          <td key={mKey} className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-amber-800 dark:text-amber-300 whitespace-nowrap">
+                            {formatCurrency(d?.estimatedTotal || 0)}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2.5 px-3 text-right font-black text-amber-800 dark:text-amber-300 border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 whitespace-nowrap">
+                        {formatCurrency(transposedExpenseSummary.sumEst)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-amber-700 dark:text-amber-300 border-r border-slate-200 dark:border-slate-800 bg-amber-50/30 dark:bg-amber-950/20 whitespace-nowrap">
+                        {formatCurrency(transposedExpenseSummary.avgEst)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-400 whitespace-nowrap">
+                        -
+                      </td>
+                    </tr>
+
+                    {/* ROW: ผลต่างงบประมาณ (+/- Difference) */}
+                    <tr className="bg-slate-100/70 dark:bg-slate-800/70 border-t-2 border-slate-300 dark:border-slate-700 font-black">
+                      <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-800 py-3.5 px-4 font-black text-slate-900 dark:text-white border-r-2 border-slate-300 dark:border-slate-700 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                        📊 ผลต่าง (+/- Diff)
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const isCurrent = mKey === currentMonthKey;
+                        const d = expenseByMonthMap[mKey];
+                        const est = d?.estimatedTotal || 0;
+                        const act = isCurrent ? liveCurrentExpenseTotal : (d?.actualTotal || 0);
+                        const diff = est - act;
+                        const isOver = diff < 0;
+
+                        return (
+                          <td
+                            key={mKey}
+                            className={`py-3 px-3 text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap font-black ${
+                              isOver ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {isOver ? `-${formatCurrency(Math.abs(diff), false)}` : `+${formatCurrency(diff, false)}`}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={`py-3 px-3 text-right font-black border-r border-slate-300 dark:border-slate-700 bg-slate-200/50 dark:bg-slate-700/50 whitespace-nowrap ${
+                          transposedExpenseSummary.sumDiff < 0 ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {transposedExpenseSummary.sumDiff < 0
+                          ? `-${formatCurrency(Math.abs(transposedExpenseSummary.sumDiff), false)}`
+                          : `+${formatCurrency(transposedExpenseSummary.sumDiff, false)}`}
+                      </td>
+                      <td colSpan={2} className="py-3 px-3 text-center text-slate-400 text-[10px]">
+                        -
+                      </td>
+                    </tr>
+
+                    {/* ROW: สถานะชำระบิล */}
+                    <tr className="bg-white dark:bg-slate-900">
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 py-2.5 px-4 font-bold text-slate-500 border-r-2 border-slate-200 dark:border-slate-800 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        📋 สถานะชำระบิล
+                      </td>
+                      {transposedMonths.map(mKey => {
+                        const d = expenseByMonthMap[mKey];
+                        const isCurrent = mKey === currentMonthKey;
+                        const paidCount = isCurrent
+                          ? expenses.filter(e => e.isPaidThisMonth || e.lastPaidMonth === currentMonthKey).length
+                          : (d?.paidCount || 0);
+                        const totalBills = d?.totalBills || expenses.length;
+                        const isAllPaid = paidCount >= totalBills && totalBills > 0;
+
+                        return (
+                          <td key={mKey} className="py-2.5 px-2 text-center border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isAllPaid
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {paidCount}/{totalBills} {isAllPaid ? '✔' : ''}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td colSpan={3} className="py-2.5 px-3 text-center text-slate-400 text-[10px]">
+                        -
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* 2.2 ตารางแนวตั้งเดิม (VERTICAL EXPENSES TABLE) */
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+              <div className="overflow-y-auto max-h-[700px] w-full">
               
               {/* VIEW MODE 1: FIT SCREEN (พอดีจอ 100% ไม่มีแถบสไลด์ซ้ายขวา) */}
               {expenseTableViewMode === 'fit' ? (
@@ -1257,8 +2197,9 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
 
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
       {/* ============================================================== */}
       {/* SUB-TAB 3: BUDGET SETTINGS & MONTHLY CHECKLIST                 */}
