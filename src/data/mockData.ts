@@ -137,322 +137,386 @@ export const initialSettings: HouseholdSettings = {
     "2021-06": {
         "person_a": 17834.82,
         "person_b": 13950,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2021-07": {
         "person_a": 16766.4,
         "person_b": 13219,
-        "other": 0
+        "other": 0,
+        "balance": 530
     },
     "2021-08": {
         "person_a": 21797.89,
         "person_b": 13219,
-        "other": 0
+        "other": 0,
+        "balance": -846.6
     },
     "2021-09": {
         "person_a": 18356.8,
         "person_b": 16361.8,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2021-10": {
         "person_a": 16518.82,
         "person_b": 13742.8,
-        "other": 0
+        "other": 0,
+        "balance": 3078.79
     },
     "2021-11": {
         "person_a": 17341.54,
         "person_b": 13742.8,
-        "other": 5000
+        "other": 5000,
+        "balance": 1134.4
     },
     "2021-12": {
         "person_a": 62000,
         "person_b": 13742.8,
-        "other": 0
+        "other": 0,
+        "balance": 1000
     },
     "2022-01": {
         "person_a": 17712.05,
         "person_b": 15993.2,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-02": {
         "person_a": 18127.91,
         "person_b": 14305.4,
-        "other": 0
+        "other": 0,
+        "balance": 1327.03
     },
     "2022-03": {
         "person_a": 16909.82,
         "person_b": 14779.4,
-        "other": 3600
+        "other": 3600,
+        "balance": 634.84
     },
     "2022-04": {
         "person_a": 17209.82,
         "person_b": 15036.4,
-        "other": 0
+        "other": 0,
+        "balance": -12000
     },
     "2022-05": {
         "person_a": 18109.82,
         "person_b": 15036.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-06": {
         "person_a": 20837.29,
         "person_b": 15636.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-07": {
         "person_a": 6500,
         "person_b": 14828.4,
-        "other": 0
+        "other": 0,
+        "balance": 8000
     },
     "2022-08": {
         "person_a": 0,
         "person_b": 14828.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-09": {
         "person_a": 11988,
         "person_b": 15418.8,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-10": {
         "person_a": 23628,
         "person_b": 15526.8,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-11": {
         "person_a": 21664.88,
         "person_b": 15526.8,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2022-12": {
         "person_a": 21131.7,
         "person_b": 15526.8,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-01": {
         "person_a": 20971,
         "person_b": 16215.5,
-        "other": 5250
+        "other": 5250,
+        "balance": 0
     },
     "2023-02": {
         "person_a": 20633,
         "person_b": 16215.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-03": {
         "person_a": 20679,
         "person_b": 16215.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-04": {
         "person_a": 21559,
         "person_b": 16215.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-05": {
         "person_a": 25027,
         "person_b": 17023.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-06": {
         "person_a": 26872.38,
         "person_b": 17023.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-07": {
         "person_a": 23496,
         "person_b": 16139.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-08": {
         "person_a": 21037.38,
         "person_b": 16139.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-09": {
         "person_a": 23902.41,
         "person_b": 19806.1,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-10": {
         "person_a": 22636,
         "person_b": 16750.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-11": {
         "person_a": 23723,
         "person_b": 16750.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2023-12": {
         "person_a": 24491,
         "person_b": 16750.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-01": {
         "person_a": 22035,
         "person_b": 16750.6,
-        "other": 21735
+        "other": 21735,
+        "balance": 0
     },
     "2024-02": {
         "person_a": 23978,
         "person_b": 16750.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-03": {
         "person_a": 25734,
         "person_b": 17376.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-04": {
         "person_a": 26963,
         "person_b": 17419.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-06": {
         "person_a": 22670,
         "person_b": 18030.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-07": {
         "person_a": 24320,
         "person_b": 18052.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-08": {
         "person_a": 22480,
         "person_b": 17975.45,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-09": {
         "person_a": 23881,
         "person_b": 17975.45,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-10": {
         "person_a": 30867,
         "person_b": 19310.4,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-11": {
         "person_a": 30947,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2024-12": {
         "person_a": 32512,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-01": {
         "person_a": 35000,
         "person_b": 19653.5,
-        "other": 30250
+        "other": 30250,
+        "balance": 0
     },
     "2025-02": {
         "person_a": 32843,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-03": {
         "person_a": 27056,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-04": {
         "person_a": 27703,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-05": {
         "person_a": 31835.28,
         "person_b": 19653.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-06": {
         "person_a": 34891,
         "person_b": 21108.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-07": {
         "person_a": 35034,
         "person_b": 20381,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-08": {
         "person_a": 33583,
         "person_b": 20224,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-09": {
         "person_a": 36967,
         "person_b": 20224,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-10": {
         "person_a": 36612,
         "person_b": 26092.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-11": {
         "person_a": 32591,
         "person_b": 21397.7,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2025-12": {
         "person_a": 35689,
         "person_b": 23085.5,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-01": {
         "person_a": 37876,
         "person_b": 22241.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-02": {
         "person_a": 33878,
         "person_b": 22241.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-03": {
         "person_a": 36152,
         "person_b": 22241.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-04": {
         "person_a": 34862,
         "person_b": 22241.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-05": {
         "person_a": 32094,
         "person_b": 22241.6,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-06": {
         "person_a": 35765,
         "person_b": 23774.2,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-07": {
         "person_a": 37844.68,
         "person_b": 23007.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-08": {
         "person_a": 34131,
         "person_b": 22852.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-09": {
         "person_a": 40250,
         "person_b": 22852.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     },
     "2026-10": {
-        "person_a": 40250,
+        "person_a": 0,
         "person_b": 22852.9,
-        "other": 0
+        "other": 0,
+        "balance": 0
     }
 },
 };
@@ -662,8 +726,8 @@ const rawTransactions: Transaction[] = [
     "contributorId": "joint",
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
-    "note": "ยกยอดเงินออมสะสม",
-    "createdAt": "2022-05-31T01:00:00.000Z"
+    "note": "ยกยอดเงินออม",
+    "createdAt": "2022-05-31T00:00:01.000Z"
   },
   {
     "id": "tx-passbook-2",
@@ -671,11 +735,11 @@ const rawTransactions: Transaction[] = [
     "amount": 14600,
     "type": "deposit",
     "targetFund": "long_term",
-    "contributorId": "joint",
+    "contributorId": "person_b",
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "ฝากเงินออม (เมย์)",
-    "createdAt": "2022-05-31T02:00:00.000Z"
+    "createdAt": "2022-05-31T00:00:02.000Z"
   },
   {
     "id": "tx-passbook-3",
@@ -683,11 +747,11 @@ const rawTransactions: Transaction[] = [
     "amount": 1000,
     "type": "deposit",
     "targetFund": "long_term",
-    "contributorId": "joint",
+    "contributorId": "person_a",
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "หยอดกระปุก (เจ)",
-    "createdAt": "2022-05-31T03:00:00.000Z"
+    "createdAt": "2022-05-31T00:00:03.000Z"
   },
   {
     "id": "tx-passbook-4",
@@ -700,7 +764,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนค่าใช้จ่าย",
-    "createdAt": "2022-06-01T04:00:00.000Z"
+    "createdAt": "2022-06-01T00:00:04.000Z"
   },
   {
     "id": "tx-passbook-5",
@@ -712,7 +776,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "ออมเพิ่ม",
-    "createdAt": "2022-06-27T05:00:00.000Z"
+    "createdAt": "2022-06-27T00:00:05.000Z"
   },
   {
     "id": "tx-passbook-6",
@@ -724,7 +788,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "หยอดเงิน",
-    "createdAt": "2022-06-28T06:00:00.000Z"
+    "createdAt": "2022-06-28T00:00:06.000Z"
   },
   {
     "id": "tx-passbook-7",
@@ -736,7 +800,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ยเงินฝาก",
-    "createdAt": "2022-06-30T07:00:00.000Z"
+    "createdAt": "2022-06-30T00:00:07.000Z"
   },
   {
     "id": "tx-passbook-8",
@@ -748,7 +812,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินทอน",
-    "createdAt": "2022-07-02T08:00:00.000Z"
+    "createdAt": "2022-07-02T00:00:08.000Z"
   },
   {
     "id": "tx-passbook-9",
@@ -761,7 +825,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ซื้อวัว",
-    "createdAt": "2022-07-10T09:00:00.000Z"
+    "createdAt": "2022-07-10T00:00:09.000Z"
   },
   {
     "id": "tx-passbook-10",
@@ -773,7 +837,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "กองทุน",
-    "createdAt": "2022-07-26T10:00:00.000Z"
+    "createdAt": "2022-07-26T00:00:10.000Z"
   },
   {
     "id": "tx-passbook-11",
@@ -785,7 +849,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "ออมเพิ่ม",
-    "createdAt": "2022-07-27T11:00:00.000Z"
+    "createdAt": "2022-07-27T00:00:11.000Z"
   },
   {
     "id": "tx-passbook-12",
@@ -798,7 +862,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าธรรมเนียม",
-    "createdAt": "2022-09-13T12:00:00.000Z"
+    "createdAt": "2022-09-13T00:00:12.000Z"
   },
   {
     "id": "tx-passbook-13",
@@ -811,7 +875,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนใช้จ่าย",
-    "createdAt": "2022-09-16T13:00:00.000Z"
+    "createdAt": "2022-09-16T00:00:13.000Z"
   },
   {
     "id": "tx-passbook-14",
@@ -824,7 +888,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนซื้อของ",
-    "createdAt": "2022-09-16T14:00:00.000Z"
+    "createdAt": "2022-09-16T00:00:14.000Z"
   },
   {
     "id": "tx-passbook-15",
@@ -837,7 +901,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "จ่ายค่าของ",
-    "createdAt": "2022-09-24T15:00:00.000Z"
+    "createdAt": "2022-09-24T00:00:15.000Z"
   },
   {
     "id": "tx-passbook-16",
@@ -849,7 +913,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "หยอดสิ้นเดือน",
-    "createdAt": "2022-09-30T16:00:00.000Z"
+    "createdAt": "2022-09-30T00:00:16.000Z"
   },
   {
     "id": "tx-passbook-17",
@@ -862,7 +926,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนค่าใช้จ่าย",
-    "createdAt": "2022-10-18T17:00:00.000Z"
+    "createdAt": "2022-10-18T00:00:17.000Z"
   },
   {
     "id": "tx-passbook-18",
@@ -874,7 +938,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2022-11-01T18:00:00.000Z"
+    "createdAt": "2022-11-01T00:00:18.000Z"
   },
   {
     "id": "tx-passbook-19",
@@ -887,7 +951,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนค่าใช้จ่าย",
-    "createdAt": "2022-11-02T19:00:00.000Z"
+    "createdAt": "2022-11-02T00:00:19.000Z"
   },
   {
     "id": "tx-passbook-20",
@@ -900,7 +964,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ซื้อทองให้",
-    "createdAt": "2022-11-12T20:00:00.000Z"
+    "createdAt": "2022-11-12T00:00:20.000Z"
   },
   {
     "id": "tx-passbook-21",
@@ -913,7 +977,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าธรรมเนียม",
-    "createdAt": "2022-11-23T21:00:00.000Z"
+    "createdAt": "2022-11-23T00:00:21.000Z"
   },
   {
     "id": "tx-passbook-22",
@@ -925,7 +989,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "คืนเงิน",
-    "createdAt": "2022-11-25T22:00:00.000Z"
+    "createdAt": "2022-11-25T00:00:22.000Z"
   },
   {
     "id": "tx-passbook-23",
@@ -938,7 +1002,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2022-12-31T23:00:00.000Z"
+    "createdAt": "2022-12-31T00:00:23.000Z"
   },
   {
     "id": "tx-passbook-24",
@@ -950,7 +1014,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ยเงินฝาก",
-    "createdAt": "2022-12-31T24:00:00.000Z"
+    "createdAt": "2022-12-31T00:00:24.000Z"
   },
   {
     "id": "tx-passbook-25",
@@ -962,7 +1026,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-01-02T25:00:00.000Z"
+    "createdAt": "2023-01-02T00:00:25.000Z"
   },
   {
     "id": "tx-passbook-26",
@@ -974,7 +1038,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-01-25T26:00:00.000Z"
+    "createdAt": "2023-01-25T00:00:26.000Z"
   },
   {
     "id": "tx-passbook-27",
@@ -986,7 +1050,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-02-03T27:00:00.000Z"
+    "createdAt": "2023-02-03T00:00:27.000Z"
   },
   {
     "id": "tx-passbook-28",
@@ -998,7 +1062,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-03-01T28:00:00.000Z"
+    "createdAt": "2023-03-01T00:00:28.000Z"
   },
   {
     "id": "tx-passbook-29",
@@ -1011,7 +1075,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-03-20T29:00:00.000Z"
+    "createdAt": "2023-03-20T00:00:29.000Z"
   },
   {
     "id": "tx-passbook-30",
@@ -1024,7 +1088,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-03-24T30:00:00.000Z"
+    "createdAt": "2023-03-24T00:00:30.000Z"
   },
   {
     "id": "tx-passbook-31",
@@ -1036,7 +1100,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2023-03-25T31:00:00.000Z"
+    "createdAt": "2023-03-25T00:00:31.000Z"
   },
   {
     "id": "tx-passbook-32",
@@ -1049,7 +1113,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-03-27T32:00:00.000Z"
+    "createdAt": "2023-03-27T00:00:32.000Z"
   },
   {
     "id": "tx-passbook-33",
@@ -1061,7 +1125,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-04-01T33:00:00.000Z"
+    "createdAt": "2023-04-01T00:00:33.000Z"
   },
   {
     "id": "tx-passbook-34",
@@ -1074,7 +1138,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-04-23T34:00:00.000Z"
+    "createdAt": "2023-04-23T00:00:34.000Z"
   },
   {
     "id": "tx-passbook-35",
@@ -1086,7 +1150,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-05-03T35:00:00.000Z"
+    "createdAt": "2023-05-03T00:00:35.000Z"
   },
   {
     "id": "tx-passbook-36",
@@ -1099,7 +1163,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-05-24T36:00:00.000Z"
+    "createdAt": "2023-05-24T00:00:36.000Z"
   },
   {
     "id": "tx-passbook-37",
@@ -1111,7 +1175,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-06-02T37:00:00.000Z"
+    "createdAt": "2023-06-02T00:00:37.000Z"
   },
   {
     "id": "tx-passbook-38",
@@ -1124,7 +1188,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-06-25T38:00:00.000Z"
+    "createdAt": "2023-06-25T00:00:38.000Z"
   },
   {
     "id": "tx-passbook-39",
@@ -1136,7 +1200,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2023-06-30T39:00:00.000Z"
+    "createdAt": "2023-06-30T00:00:39.000Z"
   },
   {
     "id": "tx-passbook-40",
@@ -1148,7 +1212,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-07-02T40:00:00.000Z"
+    "createdAt": "2023-07-02T00:00:40.000Z"
   },
   {
     "id": "tx-passbook-41",
@@ -1161,7 +1225,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-07-22T41:00:00.000Z"
+    "createdAt": "2023-07-22T00:00:41.000Z"
   },
   {
     "id": "tx-passbook-42",
@@ -1173,7 +1237,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-07-25T42:00:00.000Z"
+    "createdAt": "2023-07-25T00:00:42.000Z"
   },
   {
     "id": "tx-passbook-43",
@@ -1185,7 +1249,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-08-02T43:00:00.000Z"
+    "createdAt": "2023-08-02T00:00:43.000Z"
   },
   {
     "id": "tx-passbook-44",
@@ -1198,7 +1262,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าประกัน",
-    "createdAt": "2023-08-07T44:00:00.000Z"
+    "createdAt": "2023-08-07T00:00:44.000Z"
   },
   {
     "id": "tx-passbook-45",
@@ -1211,7 +1275,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-08-18T45:00:00.000Z"
+    "createdAt": "2023-08-18T00:00:45.000Z"
   },
   {
     "id": "tx-passbook-46",
@@ -1224,7 +1288,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-08-25T46:00:00.000Z"
+    "createdAt": "2023-08-25T00:00:46.000Z"
   },
   {
     "id": "tx-passbook-47",
@@ -1237,7 +1301,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-08-27T47:00:00.000Z"
+    "createdAt": "2023-08-27T00:00:47.000Z"
   },
   {
     "id": "tx-passbook-48",
@@ -1250,7 +1314,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ",
-    "createdAt": "2023-09-04T48:00:00.000Z"
+    "createdAt": "2023-09-04T00:00:48.000Z"
   },
   {
     "id": "tx-passbook-49",
@@ -1263,7 +1327,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-09-24T49:00:00.000Z"
+    "createdAt": "2023-09-24T00:00:49.000Z"
   },
   {
     "id": "tx-passbook-50",
@@ -1275,7 +1339,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-10-02T50:00:00.000Z"
+    "createdAt": "2023-10-02T00:00:50.000Z"
   },
   {
     "id": "tx-passbook-51",
@@ -1287,7 +1351,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "คืนเงิน",
-    "createdAt": "2023-10-11T51:00:00.000Z"
+    "createdAt": "2023-10-11T00:00:51.000Z"
   },
   {
     "id": "tx-passbook-52",
@@ -1299,7 +1363,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-11-02T52:00:00.000Z"
+    "createdAt": "2023-11-02T00:00:52.000Z"
   },
   {
     "id": "tx-passbook-53",
@@ -1312,7 +1376,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าแบตเตอรี่",
-    "createdAt": "2023-11-05T53:00:00.000Z"
+    "createdAt": "2023-11-05T00:00:53.000Z"
   },
   {
     "id": "tx-passbook-54",
@@ -1325,7 +1389,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2023-11-26T54:00:00.000Z"
+    "createdAt": "2023-11-26T00:00:54.000Z"
   },
   {
     "id": "tx-passbook-55",
@@ -1337,7 +1401,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2023-12-02T55:00:00.000Z"
+    "createdAt": "2023-12-02T00:00:55.000Z"
   },
   {
     "id": "tx-passbook-56",
@@ -1350,7 +1414,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "กลับบ้าน",
-    "createdAt": "2023-12-22T56:00:00.000Z"
+    "createdAt": "2023-12-22T00:00:56.000Z"
   },
   {
     "id": "tx-passbook-57",
@@ -1362,7 +1426,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2023-12-31T57:00:00.000Z"
+    "createdAt": "2023-12-31T00:00:57.000Z"
   },
   {
     "id": "tx-passbook-58",
@@ -1374,7 +1438,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-01-02T58:00:00.000Z"
+    "createdAt": "2024-01-02T00:00:58.000Z"
   },
   {
     "id": "tx-passbook-59",
@@ -1386,7 +1450,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-01-16T59:00:00.000Z"
+    "createdAt": "2024-01-16T00:00:59.000Z"
   },
   {
     "id": "tx-passbook-60",
@@ -1399,7 +1463,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2024-01-21T60:00:00.000Z"
+    "createdAt": "2024-01-21T00:01:00.000Z"
   },
   {
     "id": "tx-passbook-61",
@@ -1411,7 +1475,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-02-03T61:00:00.000Z"
+    "createdAt": "2024-02-03T00:01:01.000Z"
   },
   {
     "id": "tx-passbook-62",
@@ -1424,7 +1488,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2024-02-21T62:00:00.000Z"
+    "createdAt": "2024-02-21T00:01:02.000Z"
   },
   {
     "id": "tx-passbook-63",
@@ -1436,7 +1500,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-03-02T63:00:00.000Z"
+    "createdAt": "2024-03-02T00:01:03.000Z"
   },
   {
     "id": "tx-passbook-64",
@@ -1449,7 +1513,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ",
-    "createdAt": "2024-03-11T64:00:00.000Z"
+    "createdAt": "2024-03-11T00:01:04.000Z"
   },
   {
     "id": "tx-passbook-65",
@@ -1462,7 +1526,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบิกใช้จ่าย",
-    "createdAt": "2024-03-25T65:00:00.000Z"
+    "createdAt": "2024-03-25T00:01:05.000Z"
   },
   {
     "id": "tx-passbook-66",
@@ -1474,7 +1538,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-03-28T66:00:00.000Z"
+    "createdAt": "2024-03-28T00:01:06.000Z"
   },
   {
     "id": "tx-passbook-67",
@@ -1486,7 +1550,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-04-01T67:00:00.000Z"
+    "createdAt": "2024-04-01T00:01:07.000Z"
   },
   {
     "id": "tx-passbook-68",
@@ -1499,7 +1563,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ",
-    "createdAt": "2024-04-08T68:00:00.000Z"
+    "createdAt": "2024-04-08T00:01:08.000Z"
   },
   {
     "id": "tx-passbook-69",
@@ -1512,7 +1576,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "กลับบ้าน/ซื้อทอง",
-    "createdAt": "2024-04-10T69:00:00.000Z"
+    "createdAt": "2024-04-10T00:01:09.000Z"
   },
   {
     "id": "tx-passbook-70",
@@ -1525,7 +1589,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2024-04-21T70:00:00.000Z"
+    "createdAt": "2024-04-21T00:01:10.000Z"
   },
   {
     "id": "tx-passbook-71",
@@ -1537,7 +1601,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-05-01T71:00:00.000Z"
+    "createdAt": "2024-05-01T00:01:11.000Z"
   },
   {
     "id": "tx-passbook-72",
@@ -1550,7 +1614,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2024-05-26T72:00:00.000Z"
+    "createdAt": "2024-05-26T00:01:12.000Z"
   },
   {
     "id": "tx-passbook-73",
@@ -1563,7 +1627,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ",
-    "createdAt": "2024-05-28T73:00:00.000Z"
+    "createdAt": "2024-05-28T00:01:13.000Z"
   },
   {
     "id": "tx-passbook-74",
@@ -1575,7 +1639,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-06-04T74:00:00.000Z"
+    "createdAt": "2024-06-04T00:01:14.000Z"
   },
   {
     "id": "tx-passbook-75",
@@ -1588,7 +1652,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ 1",
-    "createdAt": "2024-06-07T75:00:00.000Z"
+    "createdAt": "2024-06-07T00:01:15.000Z"
   },
   {
     "id": "tx-passbook-76",
@@ -1600,7 +1664,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2024-06-30T76:00:00.000Z"
+    "createdAt": "2024-06-30T00:01:16.000Z"
   },
   {
     "id": "tx-passbook-77",
@@ -1612,7 +1676,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-07-02T77:00:00.000Z"
+    "createdAt": "2024-07-02T00:01:17.000Z"
   },
   {
     "id": "tx-passbook-78",
@@ -1625,7 +1689,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ1",
-    "createdAt": "2024-07-05T78:00:00.000Z"
+    "createdAt": "2024-07-05T00:01:18.000Z"
   },
   {
     "id": "tx-passbook-79",
@@ -1638,7 +1702,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เช็คระยะ 60,000km",
-    "createdAt": "2024-07-13T79:00:00.000Z"
+    "createdAt": "2024-07-13T00:01:19.000Z"
   },
   {
     "id": "tx-passbook-80",
@@ -1651,7 +1715,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่ารักษา",
-    "createdAt": "2024-08-15T80:00:00.000Z"
+    "createdAt": "2024-08-15T00:01:20.000Z"
   },
   {
     "id": "tx-passbook-81",
@@ -1664,7 +1728,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เบี้ยสายลับ",
-    "createdAt": "2024-08-23T81:00:00.000Z"
+    "createdAt": "2024-08-23T00:01:21.000Z"
   },
   {
     "id": "tx-passbook-82",
@@ -1677,7 +1741,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "สรุปรายจ่าย",
-    "createdAt": "2024-08-31T82:00:00.000Z"
+    "createdAt": "2024-08-31T00:01:22.000Z"
   },
   {
     "id": "tx-passbook-83",
@@ -1689,7 +1753,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-09-02T83:00:00.000Z"
+    "createdAt": "2024-09-02T00:01:23.000Z"
   },
   {
     "id": "tx-passbook-84",
@@ -1702,7 +1766,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "รายจ่ายเพิ่ม",
-    "createdAt": "2024-09-30T84:00:00.000Z"
+    "createdAt": "2024-09-30T00:01:24.000Z"
   },
   {
     "id": "tx-passbook-85",
@@ -1714,7 +1778,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-10-02T85:00:00.000Z"
+    "createdAt": "2024-10-02T00:01:25.000Z"
   },
   {
     "id": "tx-passbook-86",
@@ -1726,7 +1790,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-11-01T86:00:00.000Z"
+    "createdAt": "2024-11-01T00:01:26.000Z"
   },
   {
     "id": "tx-passbook-87",
@@ -1739,7 +1803,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "รายจ่ายเพิ่ม",
-    "createdAt": "2024-11-01T87:00:00.000Z"
+    "createdAt": "2024-11-01T00:01:27.000Z"
   },
   {
     "id": "tx-passbook-88",
@@ -1751,7 +1815,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-11-01T88:00:00.000Z"
+    "createdAt": "2024-11-01T00:01:28.000Z"
   },
   {
     "id": "tx-passbook-89",
@@ -1764,7 +1828,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2024-11-28T89:00:00.000Z"
+    "createdAt": "2024-11-28T00:01:29.000Z"
   },
   {
     "id": "tx-passbook-90",
@@ -1776,7 +1840,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-11-30T90:00:00.000Z"
+    "createdAt": "2024-11-30T00:01:30.000Z"
   },
   {
     "id": "tx-passbook-91",
@@ -1788,7 +1852,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2024-12-02T91:00:00.000Z"
+    "createdAt": "2024-12-02T00:01:31.000Z"
   },
   {
     "id": "tx-passbook-92",
@@ -1801,7 +1865,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ซื้อของฝาก",
-    "createdAt": "2024-12-21T92:00:00.000Z"
+    "createdAt": "2024-12-21T00:01:32.000Z"
   },
   {
     "id": "tx-passbook-93",
@@ -1814,7 +1878,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เช็คระยะ 70,000",
-    "createdAt": "2024-12-28T93:00:00.000Z"
+    "createdAt": "2024-12-28T00:01:33.000Z"
   },
   {
     "id": "tx-passbook-94",
@@ -1826,7 +1890,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2024-12-31T94:00:00.000Z"
+    "createdAt": "2024-12-31T00:01:34.000Z"
   },
   {
     "id": "tx-passbook-95",
@@ -1838,7 +1902,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-01-02T95:00:00.000Z"
+    "createdAt": "2025-01-02T00:01:35.000Z"
   },
   {
     "id": "tx-passbook-96",
@@ -1850,7 +1914,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "โบนัสอาลี",
-    "createdAt": "2025-01-15T96:00:00.000Z"
+    "createdAt": "2025-01-15T00:01:36.000Z"
   },
   {
     "id": "tx-passbook-97",
@@ -1863,7 +1927,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ถอนเงิน",
-    "createdAt": "2025-01-20T97:00:00.000Z"
+    "createdAt": "2025-01-20T00:01:37.000Z"
   },
   {
     "id": "tx-passbook-98",
@@ -1875,7 +1939,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-02-01T98:00:00.000Z"
+    "createdAt": "2025-02-01T00:01:38.000Z"
   },
   {
     "id": "tx-passbook-99",
@@ -1887,7 +1951,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-02-25T99:00:00.000Z"
+    "createdAt": "2025-02-25T00:01:39.000Z"
   },
   {
     "id": "tx-passbook-100",
@@ -1899,7 +1963,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-03-05T100:00:00.000Z"
+    "createdAt": "2025-03-05T00:01:40.000Z"
   },
   {
     "id": "tx-passbook-101",
@@ -1911,7 +1975,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-04-02T101:00:00.000Z"
+    "createdAt": "2025-04-02T00:01:41.000Z"
   },
   {
     "id": "tx-passbook-102",
@@ -1923,7 +1987,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-05-02T102:00:00.000Z"
+    "createdAt": "2025-05-02T00:01:42.000Z"
   },
   {
     "id": "tx-passbook-103",
@@ -1936,7 +2000,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "คืนเงิน",
-    "createdAt": "2025-05-18T103:00:00.000Z"
+    "createdAt": "2025-05-18T00:01:43.000Z"
   },
   {
     "id": "tx-passbook-104",
@@ -1948,7 +2012,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "คืนเงิน",
-    "createdAt": "2025-05-29T104:00:00.000Z"
+    "createdAt": "2025-05-29T00:01:44.000Z"
   },
   {
     "id": "tx-passbook-105",
@@ -1960,7 +2024,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-05-31T105:00:00.000Z"
+    "createdAt": "2025-05-31T00:01:45.000Z"
   },
   {
     "id": "tx-passbook-106",
@@ -1972,7 +2036,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2025-06-30T106:00:00.000Z"
+    "createdAt": "2025-06-30T00:01:46.000Z"
   },
   {
     "id": "tx-passbook-107",
@@ -1984,7 +2048,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-07-02T107:00:00.000Z"
+    "createdAt": "2025-07-02T00:01:47.000Z"
   },
   {
     "id": "tx-passbook-108",
@@ -1996,7 +2060,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-08-01T108:00:00.000Z"
+    "createdAt": "2025-08-01T00:01:48.000Z"
   },
   {
     "id": "tx-passbook-109",
@@ -2008,7 +2072,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-09-02T109:00:00.000Z"
+    "createdAt": "2025-09-02T00:01:49.000Z"
   },
   {
     "id": "tx-passbook-110",
@@ -2021,7 +2085,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "จ่ายค่าเทอม",
-    "createdAt": "2025-09-02T110:00:00.000Z"
+    "createdAt": "2025-09-02T00:01:50.000Z"
   },
   {
     "id": "tx-passbook-111",
@@ -2033,7 +2097,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-09-02T111:00:00.000Z"
+    "createdAt": "2025-09-02T00:01:51.000Z"
   },
   {
     "id": "tx-passbook-112",
@@ -2046,7 +2110,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าซ่อมเครื่องตัดหญ้า",
-    "createdAt": "2025-09-08T112:00:00.000Z"
+    "createdAt": "2025-09-08T00:01:52.000Z"
   },
   {
     "id": "tx-passbook-113",
@@ -2058,7 +2122,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "แม่คืนค่าเทอม",
-    "createdAt": "2025-09-30T113:00:00.000Z"
+    "createdAt": "2025-09-30T00:01:53.000Z"
   },
   {
     "id": "tx-passbook-114",
@@ -2070,7 +2134,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-10-01T114:00:00.000Z"
+    "createdAt": "2025-10-01T00:01:54.000Z"
   },
   {
     "id": "tx-passbook-115",
@@ -2083,7 +2147,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าผ้าม่านห้องผู้",
-    "createdAt": "2025-10-15T115:00:00.000Z"
+    "createdAt": "2025-10-15T00:01:55.000Z"
   },
   {
     "id": "tx-passbook-116",
@@ -2095,7 +2159,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-10-31T116:00:00.000Z"
+    "createdAt": "2025-10-31T00:01:56.000Z"
   },
   {
     "id": "tx-passbook-117",
@@ -2107,7 +2171,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "แม่คืนค่าเทอม",
-    "createdAt": "2025-11-04T117:00:00.000Z"
+    "createdAt": "2025-11-04T00:01:57.000Z"
   },
   {
     "id": "tx-passbook-118",
@@ -2120,7 +2184,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เอาท์โก้",
-    "createdAt": "2025-11-25T118:00:00.000Z"
+    "createdAt": "2025-11-25T00:01:58.000Z"
   },
   {
     "id": "tx-passbook-119",
@@ -2132,7 +2196,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2025-12-01T119:00:00.000Z"
+    "createdAt": "2025-12-01T00:01:59.000Z"
   },
   {
     "id": "tx-passbook-120",
@@ -2144,7 +2208,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "แม่คืนค่าเทอม",
-    "createdAt": "2025-12-04T120:00:00.000Z"
+    "createdAt": "2025-12-04T00:02:00.000Z"
   },
   {
     "id": "tx-passbook-121",
@@ -2157,7 +2221,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าเทอมกุลธร",
-    "createdAt": "2025-12-21T121:00:00.000Z"
+    "createdAt": "2025-12-21T00:02:01.000Z"
   },
   {
     "id": "tx-passbook-122",
@@ -2170,7 +2234,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าประตูหน้าต่าง",
-    "createdAt": "2025-12-31T122:00:00.000Z"
+    "createdAt": "2025-12-31T00:02:02.000Z"
   },
   {
     "id": "tx-passbook-123",
@@ -2182,7 +2246,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2025-12-31T123:00:00.000Z"
+    "createdAt": "2025-12-31T00:02:03.000Z"
   },
   {
     "id": "tx-passbook-124",
@@ -2194,7 +2258,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-01-04T124:00:00.000Z"
+    "createdAt": "2026-01-04T00:02:04.000Z"
   },
   {
     "id": "tx-passbook-125",
@@ -2207,7 +2271,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่ากระเบื้องแม่",
-    "createdAt": "2026-01-09T125:00:00.000Z"
+    "createdAt": "2026-01-09T00:02:05.000Z"
   },
   {
     "id": "tx-passbook-126",
@@ -2219,7 +2283,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-01-22T126:00:00.000Z"
+    "createdAt": "2026-01-22T00:02:06.000Z"
   },
   {
     "id": "tx-passbook-127",
@@ -2232,7 +2296,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "จ่ายค่าข้าวให้น้อง",
-    "createdAt": "2026-01-30T127:00:00.000Z"
+    "createdAt": "2026-01-30T00:02:07.000Z"
   },
   {
     "id": "tx-passbook-128",
@@ -2244,7 +2308,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-02-01T128:00:00.000Z"
+    "createdAt": "2026-02-01T00:02:08.000Z"
   },
   {
     "id": "tx-passbook-129",
@@ -2256,7 +2320,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-02-25T129:00:00.000Z"
+    "createdAt": "2026-02-25T00:02:09.000Z"
   },
   {
     "id": "tx-passbook-130",
@@ -2268,7 +2332,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-03-01T130:00:00.000Z"
+    "createdAt": "2026-03-01T00:02:10.000Z"
   },
   {
     "id": "tx-passbook-131",
@@ -2281,7 +2345,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าที่นอน",
-    "createdAt": "2026-03-22T131:00:00.000Z"
+    "createdAt": "2026-03-22T00:02:11.000Z"
   },
   {
     "id": "tx-passbook-132",
@@ -2293,7 +2357,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-03-28T132:00:00.000Z"
+    "createdAt": "2026-03-28T00:02:12.000Z"
   },
   {
     "id": "tx-passbook-133",
@@ -2305,7 +2369,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-04-04T133:00:00.000Z"
+    "createdAt": "2026-04-04T00:02:13.000Z"
   },
   {
     "id": "tx-passbook-134",
@@ -2318,7 +2382,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ซื้อของทำไฟ",
-    "createdAt": "2026-05-02T134:00:00.000Z"
+    "createdAt": "2026-05-02T00:02:14.000Z"
   },
   {
     "id": "tx-passbook-135",
@@ -2331,7 +2395,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เอาท์โก้",
-    "createdAt": "2026-05-20T135:00:00.000Z"
+    "createdAt": "2026-05-20T00:02:15.000Z"
   },
   {
     "id": "tx-passbook-136",
@@ -2340,11 +2404,11 @@ const rawTransactions: Transaction[] = [
     "type": "withdrawal",
     "targetFund": "long_term",
     "withdrawalReason": "ค่าเทอมเมย์",
-    "contributorId": "joint",
+    "contributorId": "person_b",
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าเทอมเมย์",
-    "createdAt": "2026-05-22T136:00:00.000Z"
+    "createdAt": "2026-05-22T00:02:16.000Z"
   },
   {
     "id": "tx-passbook-137",
@@ -2356,7 +2420,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "เงินออม",
-    "createdAt": "2026-05-30T137:00:00.000Z"
+    "createdAt": "2026-05-30T00:02:17.000Z"
   },
   {
     "id": "tx-passbook-138",
@@ -2369,7 +2433,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ซื้อตู้เย็น",
-    "createdAt": "2026-06-17T138:00:00.000Z"
+    "createdAt": "2026-06-17T00:02:18.000Z"
   },
   {
     "id": "tx-passbook-139",
@@ -2382,7 +2446,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เอาท์โก้",
-    "createdAt": "2026-06-30T139:00:00.000Z"
+    "createdAt": "2026-06-30T00:02:19.000Z"
   },
   {
     "id": "tx-passbook-140",
@@ -2394,7 +2458,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ดอกเบี้ยเงินฝาก",
     "note": "ดอกเบี้ย",
-    "createdAt": "2026-06-30T140:00:00.000Z"
+    "createdAt": "2026-06-30T00:02:20.000Z"
   },
   {
     "id": "tx-passbook-141",
@@ -2407,7 +2471,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เอาท์โก้",
-    "createdAt": "2026-07-04T141:00:00.000Z"
+    "createdAt": "2026-07-04T00:02:21.000Z"
   },
   {
     "id": "tx-passbook-142",
@@ -2416,11 +2480,11 @@ const rawTransactions: Transaction[] = [
     "type": "withdrawal",
     "targetFund": "long_term",
     "withdrawalReason": "ค่าเบี้ยประกัน มย.",
-    "contributorId": "joint",
+    "contributorId": "person_b",
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าเบี้ยประกัน มย.",
-    "createdAt": "2026-07-04T142:00:00.000Z"
+    "createdAt": "2026-07-04T00:02:22.000Z"
   },
   {
     "id": "tx-passbook-143",
@@ -2433,7 +2497,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "เอาท์โก้",
-    "createdAt": "2026-07-24T143:00:00.000Z"
+    "createdAt": "2026-07-24T00:02:23.000Z"
   },
   {
     "id": "tx-passbook-144",
@@ -2446,7 +2510,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "ค่าติดม่านแอร์",
-    "createdAt": "2026-08-12T144:00:00.000Z"
+    "createdAt": "2026-08-12T00:02:24.000Z"
   },
   {
     "id": "tx-passbook-145",
@@ -2459,7 +2523,7 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "ถอนเงิน",
     "note": "จ่ายเงินเดือนแม่",
-    "createdAt": "2026-09-01T145:00:00.000Z"
+    "createdAt": "2026-09-01T00:02:25.000Z"
   },
   {
     "id": "tx-passbook-146",
@@ -2471,10 +2535,8 @@ const rawTransactions: Transaction[] = [
     "goalId": "goal-emergency",
     "category": "เงินออมสะสม",
     "note": "คืนเงิน",
-    "createdAt": "2026-09-05T146:00:00.000Z"
+    "createdAt": "2026-09-05T00:02:26.000Z"
   }
 ];
 
-export const initialTransactions: Transaction[] = [...rawTransactions].sort(
-  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-);
+export const initialTransactions: Transaction[] = [...rawTransactions];

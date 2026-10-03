@@ -123,7 +123,7 @@ export interface HouseholdSettings {
   quickAddPresets?: number[];      // Custom quick add amount presets
   investments?: InvestmentItem[];
   taxProfiles?: Record<'person_a' | 'person_b', TaxProfile>;
-  monthlyIncomes?: Record<string, { person_a?: number; person_b?: number; other?: number; note?: string }>;
+  monthlyIncomes?: Record<string, { person_a?: number; person_b?: number; other?: number; balance?: number; note?: string }>;
 }
 
 export interface MonthlySummary {

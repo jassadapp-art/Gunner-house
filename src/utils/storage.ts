@@ -1,33 +1,39 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v9';
-const GOALS_KEY = 'household_savings_goals_v9';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v9';
-const EXPENSES_KEY = 'household_savings_expenses_v9';
+const SETTINGS_KEY = 'household_savings_settings_v10';
+const GOALS_KEY = 'household_savings_goals_v10';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v10';
+const EXPENSES_KEY = 'household_savings_expenses_v10';
 
 /**
  * Safe fallback reader:
- * First checks v9; if not found, checks older versions (v8, v7, etc.) and migrates data forward
- * to guarantee that previously saved user data is NEVER lost or deleted.
+ * First checks v10; if not found, checks older versions (v9, v8, etc.)
+ * For transactions and settings: replaces with verified dataset matching user images.
  */
 const getWithFallback = (baseKey: string): string | null => {
   try {
-    const current = localStorage.getItem(`${baseKey}_v9`);
+    const current = localStorage.getItem(`${baseKey}_v10`);
     if (current) return current;
 
-    // For transactions: user specifically requested to replace old savings data with Image 4
+    // For transactions: replace old savings data with verified Image 4 transactions
     if (baseKey === 'household_savings_transactions') {
-      localStorage.setItem(`${baseKey}_v9`, JSON.stringify(initialTransactions));
+      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialTransactions));
       return JSON.stringify(initialTransactions);
     }
 
+    // For settings: load verified monthlyIncomes matching Image 1 & 2
+    if (baseKey === 'household_savings_settings') {
+      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialSettings));
+      return JSON.stringify(initialSettings);
+    }
+
     // Check previous versions in descending order
-    for (const ver of ['v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+    for (const ver of ['v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
       const prev = localStorage.getItem(`${baseKey}_${ver}`);
       if (prev) {
-        // Automatically migrate forward to v9 so user data is preserved
-        localStorage.setItem(`${baseKey}_v9`, prev);
+        // Automatically migrate forward to v10 so user data is preserved
+        localStorage.setItem(`${baseKey}_v10`, prev);
         return prev;
       }
     }
