@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { HouseholdSettings, MonthlyExpense, Transaction } from '../types';
 import {
   formatCurrency,
@@ -25,6 +25,9 @@ import {
   Table,
   Save,
   X,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 
 interface MonthlyLedgerViewProps {
@@ -84,13 +87,46 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   onDeleteExpense,
   onForceResetNewMonth,
 }) => {
+  // Current real-world month
+  const currentMonthKey = getCurrentYearMonth();
+
   // Sub-tabs: 1. Incomes Table (Image 1), 2. Expenses Table (Image 1 style), 3. Budget & Checklist
   const [activeTab, setActiveTab] = useState<'incomes' | 'expenses' | 'budget'>('incomes');
   const [sortOrder, setSortOrder] = useState<'chronological' | 'latest'>('chronological');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => getCurrentYearMonth());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonthKey);
 
-  // Inline income editing modal/state
+  // Table display mode for Expenses: 'fit' (100% width, no horizontal scroll) vs 'full' (all bill columns)
+  const [expenseTableViewMode, setExpenseTableViewMode] = useState<'fit' | 'full'>('fit');
+  // Expanded row ID for month details in fit mode
+  const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
+
+  // Quick inputs for Current Month Incomes (in the red circled area)
+  const memberA = settings.members.person_a;
+  const memberB = settings.members.person_b;
+  const baseIncomeA = memberA.monthlyIncome || 40250;
+  const baseIncomeB = memberB.monthlyIncome || 22850.90;
+
+  const currentMonthSavedIncome = settings.monthlyIncomes?.[currentMonthKey];
+  const [currentInputA, setCurrentInputA] = useState<string>(
+    () => (currentMonthSavedIncome?.person_a ?? baseIncomeA).toString()
+  );
+  const [currentInputB, setCurrentInputB] = useState<string>(
+    () => (currentMonthSavedIncome?.person_b ?? baseIncomeB).toString()
+  );
+  const [currentInputOther, setCurrentInputOther] = useState<string>(
+    () => (currentMonthSavedIncome?.other ?? 0).toString()
+  );
+
+  // Sync inputs if settings change
+  useEffect(() => {
+    const saved = settings.monthlyIncomes?.[currentMonthKey];
+    setCurrentInputA((saved?.person_a ?? baseIncomeA).toString());
+    setCurrentInputB((saved?.person_b ?? baseIncomeB).toString());
+    setCurrentInputOther((saved?.other ?? 0).toString());
+  }, [settings.monthlyIncomes, currentMonthKey, baseIncomeA, baseIncomeB]);
+
+  // Inline income editing modal/state for other historical months
   const [editingIncomeMonth, setEditingIncomeMonth] = useState<string | null>(null);
   const [editIncomeA, setEditIncomeA] = useState('');
   const [editIncomeB, setEditIncomeB] = useState('');
@@ -104,29 +140,20 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [tempBillAmount, setTempBillAmount] = useState<string>('');
 
-  // Base incomes
-  const memberA = settings.members.person_a;
-  const memberB = settings.members.person_b;
-  const baseIncomeA = memberA.monthlyIncome || 40250;
-  const baseIncomeB = memberB.monthlyIncome || 22850.90;
-
   // 1. Gather all unique months recorded across incomes, expenses, and transactions
   const allRecordedMonths = useMemo(() => {
     const set = new Set<string>();
 
-    // From settings.monthlyIncomes
     if (settings.monthlyIncomes) {
       Object.keys(settings.monthlyIncomes).forEach(m => set.add(m));
     }
 
-    // From expenses monthlyBills
     expenses.forEach(e => {
       if (e.monthlyBills) {
         Object.keys(e.monthlyBills).forEach(m => set.add(m));
       }
     });
 
-    // From transactions
     transactions.forEach(t => {
       if (t.date && t.date.length >= 7) {
         set.add(t.date.slice(0, 7));
@@ -134,11 +161,10 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     });
 
     // Always include current month
-    set.add(getCurrentYearMonth());
+    set.add(currentMonthKey);
 
-    const list = Array.from(set).sort();
-    return list;
-  }, [settings.monthlyIncomes, expenses, transactions]);
+    return Array.from(set).sort();
+  }, [settings.monthlyIncomes, expenses, transactions, currentMonthKey]);
 
   // 2. Build Incomes Table Data matching Image 1
   const allIncomeRows = useMemo<MonthIncomeData[]>(() => {
@@ -147,7 +173,6 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       const incA = custom?.person_a !== undefined ? custom.person_a : baseIncomeA;
       const incB = custom?.person_b !== undefined ? custom.person_b : baseIncomeB;
 
-      // Other income: custom override or sum of deposit transactions marked as 'รายได้พิเศษ'
       let incOther = custom?.other ?? 0;
       transactions.forEach(t => {
         if (
@@ -162,7 +187,6 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
 
       const totalIncome = incA + incB + incOther;
 
-      // Compute total expenses for this month to derive "คงเหลือ" (Net balance)
       let monthExpenses = 0;
       expenses.forEach(e => {
         monthExpenses += getExpenseAmountForMonth(e, mKey);
@@ -212,8 +236,8 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   }, [allIncomeRows, totalIncomeAllMonths]);
 
   // 3. Build Expenses Table Data (Multi-month spreadsheet format)
+  // Dynamically recalculates whenever expenses array is added/edited/removed!
   const allExpenseRows = useMemo<MonthExpenseData[]>(() => {
-    // Total estimated expense per month = sum of all recurring expenses estimated amounts
     const baseEstimated = expenses.reduce((acc, e) => acc + getExpenseEstimatedAmount(e), 0);
 
     return allRecordedMonths.map((mKey, idx) => {
@@ -227,11 +251,10 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         actualTotal += amt;
 
         const isPaid =
-          e.lastPaidMonth === mKey || (mKey === getCurrentYearMonth() && e.isPaidThisMonth);
+          e.lastPaidMonth === mKey || (mKey === currentMonthKey && e.isPaidThisMonth);
         if (isPaid) paidCount++;
       });
 
-      // Ad-hoc withdrawals in month
       let adhocTotal = 0;
       transactions.forEach(t => {
         if (t.date.startsWith(mKey) && t.type === 'withdrawal') {
@@ -240,7 +263,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       });
       actualTotal += adhocTotal;
 
-      const diff = baseEstimated - actualTotal; // positive = under budget / saved; negative = exceeded
+      const diff = baseEstimated - actualTotal;
 
       return {
         index: idx + 1,
@@ -255,7 +278,12 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         totalBills: expenses.length,
       };
     });
-  }, [allRecordedMonths, expenses, transactions]);
+  }, [allRecordedMonths, expenses, transactions, currentMonthKey]);
+
+  // Current Month Data for quick banner
+  const currentExpenseRow = useMemo(() => {
+    return allExpenseRows.find(r => r.monthKey === currentMonthKey);
+  }, [allExpenseRows, currentMonthKey]);
 
   // Filter and sort expenses
   const displayExpenseRows = useMemo(() => {
@@ -270,14 +298,14 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     return rows;
   }, [allExpenseRows, searchTerm, sortOrder]);
 
-  // Recurring items for Selected Month (Tab 3)
+  // Recurring items for Selected Month (Tab 3 & current month banner)
   const recurringItemsSelectedMonth = useMemo(() => {
     return expenses.map(exp => {
       const amount = getExpenseAmountForMonth(exp, selectedMonth);
       const estimatedAmt = getExpenseEstimatedAmount(exp);
       const isPaid =
         exp.lastPaidMonth === selectedMonth ||
-        (selectedMonth === getCurrentYearMonth() && exp.isPaidThisMonth);
+        (selectedMonth === currentMonthKey && exp.isPaidThisMonth);
 
       return {
         ...exp,
@@ -286,14 +314,31 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         isPaidInSelectedMonth: Boolean(isPaid),
       };
     });
-  }, [expenses, selectedMonth]);
+  }, [expenses, selectedMonth, currentMonthKey]);
 
   const paidCountSelectedMonth = useMemo(
     () => recurringItemsSelectedMonth.filter(i => i.isPaidInSelectedMonth).length,
     [recurringItemsSelectedMonth]
   );
 
-  // Handlers for Income Editing
+  // Live calculation for current month quick fill
+  const parsedCurrentA = parseFloat(currentInputA) || 0;
+  const parsedCurrentB = parseFloat(currentInputB) || 0;
+  const parsedCurrentOther = parseFloat(currentInputOther) || 0;
+  const currentLiveTotalIncome = parsedCurrentA + parsedCurrentB + parsedCurrentOther;
+  const currentLiveNetBalance = currentLiveTotalIncome - (currentExpenseRow?.actualTotal || 0);
+
+  // Handle Save Current Month Income
+  const handleSaveCurrentMonthIncome = () => {
+    if (!onUpdateMonthlyIncome) return;
+    onUpdateMonthlyIncome(currentMonthKey, {
+      person_a: parsedCurrentA,
+      person_b: parsedCurrentB,
+      other: parsedCurrentOther,
+    });
+  };
+
+  // Handlers for Historical Income Editing Modal
   const handleOpenEditIncome = (monthKey: string) => {
     const row = allIncomeRows.find(r => r.monthKey === monthKey);
     setEditingIncomeMonth(monthKey);
@@ -345,7 +390,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   };
 
   return (
-    <div className="space-y-7 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300">
       
       {/* Header Banner */}
       <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-600/15 via-teal-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -422,13 +467,10 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
         <div className="p-5 rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-md flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-indigo-100">
-              รอบเดือนปัจจุบัน ({getMonthLabel(getCurrentYearMonth())})
+              รอบเดือนปัจจุบัน ({getMonthLabel(currentMonthKey)})
             </span>
             <div className="text-2xl font-black text-white mt-0.5">
-              {formatCurrency(
-                (settings.monthlyIncomes?.[getCurrentYearMonth()]?.person_a ?? baseIncomeA) +
-                  (settings.monthlyIncomes?.[getCurrentYearMonth()]?.person_b ?? baseIncomeB)
-              )}
+              {formatCurrency(currentLiveTotalIncome)}
             </div>
             <p className="text-[10px] text-indigo-100/80 mt-1">
               ชำระบิลแล้ว {expenses.filter(e => e.isPaidThisMonth).length}/{expenses.length} รายการ
@@ -493,8 +535,8 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
 
         <span className="text-[11px] text-slate-400 self-end sm:self-center">
           {activeTab === 'incomes' && 'คอลัมน์: ลำดับ | วันที่ | คงเหลือ | เจ | เมย์ | อื่นๆ | รวมรายรับ'}
-          {activeTab === 'expenses' && 'คอลัมน์: ลำดับ | เดือน | ประมาณการ | จ่ายจริง | ผลต่าง | แต่ละรายการ'}
-          {activeTab === 'budget' && 'แก้ไขยอดประมาณการได้ทันที (คลิก ✏️)'}
+          {activeTab === 'expenses' && 'ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวาด้านล่าง'}
+          {activeTab === 'budget' && 'เพิ่มและแก้ไขยอดประมาณการได้ทันที'}
         </span>
       </div>
 
@@ -513,6 +555,31 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
           </div>
 
           <div className="flex items-center justify-end gap-2 text-xs">
+            {activeTab === 'expenses' && (
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setExpenseTableViewMode('fit')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                    expenseTableViewMode === 'fit'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  พอดีจอ (ไม่มีสไลด์)
+                </button>
+                <button
+                  onClick={() => setExpenseTableViewMode('full')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                    expenseTableViewMode === 'full'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  ตารางเต็ม ({expenses.length} บิล)
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() =>
                 setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
@@ -522,7 +589,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
               <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
               <span>
                 {sortOrder === 'chronological'
-                  ? 'เรียงตามเวลา (เก่า ➔ ใหม่ แบบรูปที่ 1)'
+                  ? 'เรียงตามเวลา (เก่า ➔ ใหม่)'
                   : 'เรียงล่าสุดก่อน (ใหม่ ➔ เก่า)'}
               </span>
             </button>
@@ -535,35 +602,146 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       {/* ============================================================== */}
       {activeTab === 'incomes' && (
         <div className="space-y-4">
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
-              <table className="w-full text-left text-xs border-collapse">
+          
+          {/* 📍 1.1 พื้นที่แถวเดือนปัจจุบันเสมอ (ตามพื้นที่วงสีแดงในรูปที่ 1) */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent border-2 border-emerald-500/30 dark:border-emerald-500/40 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-xs flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>เดือนปัจจุบัน</span>
+                </span>
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  {formatSpreadsheetMonth(currentMonthKey)} ({getMonthLabel(currentMonthKey)})
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:inline">
+                  • กรอกตัวเลขรายรับเดือนนี้ได้ทันทีที่แถวนี้
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">รวมรายรับเดือนนี้</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(currentLiveTotalIncome)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">คงเหลือสุทธิเดือนนี้</span>
+                  <span className={`text-sm sm:text-base font-black ${currentLiveNetBalance < 0 ? 'text-rose-600' : 'text-slate-800 dark:text-slate-100'}`}>
+                    {formatCurrencySpreadsheet(currentLiveNetBalance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Inputs Row for Current Month */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
+              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  💼 เจ (รายได้ประจำ)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">฿</span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={currentInputA}
+                    onChange={e => setCurrentInputA(e.target.value)}
+                    placeholder={baseIncomeA.toString()}
+                    className="w-full pl-6 pr-2 py-1 text-xs font-bold text-slate-900 dark:text-white rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  💼 เมย์ (รายได้ประจำ)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">฿</span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={currentInputB}
+                    onChange={e => setCurrentInputB(e.target.value)}
+                    placeholder={baseIncomeB.toString()}
+                    className="w-full pl-6 pr-2 py-1 text-xs font-bold text-slate-900 dark:text-white rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  ✨ รายได้อื่นๆ / เสริม
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">฿</span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={currentInputOther}
+                    onChange={e => setCurrentInputOther(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-6 pr-2 py-1 text-xs font-bold text-slate-900 dark:text-white rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={handleSaveCurrentMonthIncome}
+                  className="w-full py-2 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-1.5 h-[34px]"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>บันทึกรายรับเดือนนี้</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 1.2 ตารางรายรับ (ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวา) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+            <div className="overflow-y-auto max-h-[700px] w-full">
+              <table className="w-full table-fixed text-left text-xs border-collapse">
                 
+                {/* Fixed Proportional Columns that guarantee 100% screen fit */}
+                <colgroup>
+                  <col className="w-[6%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[6%]" />
+                </colgroup>
+
                 {/* Table Header matching Image 1 */}
                 <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
                   <tr>
-                    <th className="py-3 px-3 w-14 border-r border-slate-200 dark:border-slate-700">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
                       ลำดับ
                     </th>
-                    <th className="py-3 px-4 w-32 border-r border-slate-200 dark:border-slate-700">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
                       วันที่
                     </th>
-                    <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
                       คงเหลือ
                     </th>
-                    <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
                       เจ
                     </th>
-                    <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
                       เมย์
                     </th>
-                    <th className="py-3 px-4 w-36 border-r border-slate-200 dark:border-slate-700 text-right">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
                       อื่นๆ
                     </th>
-                    <th className="py-3 px-4 w-40 border-r border-slate-200 dark:border-slate-700 text-right font-black text-emerald-800 dark:text-emerald-300">
+                    <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right font-black text-emerald-800 dark:text-emerald-300">
                       รวมรายรับ
                     </th>
-                    <th className="py-3 px-3 w-20 text-center">
+                    <th className="py-3 px-1 text-center">
                       แก้ไข
                     </th>
                   </tr>
@@ -574,25 +752,43 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                   {displayIncomeRows.map(row => {
                     const isZeroNet = Math.abs(row.netBalance) < 0.01;
                     const isNegNet = row.netBalance < 0;
+                    const isCurrent = row.monthKey === currentMonthKey;
 
                     return (
                       <tr
                         key={row.monthKey}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                        className={`transition-colors ${
+                          isCurrent
+                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 font-bold hover:bg-emerald-100/70'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
+                        }`}
                       >
                         {/* 1. ลำดับ */}
-                        <td className="py-2.5 px-3 text-center text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
-                          {row.index}
+                        <td className="py-2.5 px-2 text-center text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                          {isCurrent ? (
+                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] inline-flex items-center justify-center">
+                              {row.index}
+                            </span>
+                          ) : (
+                            row.index
+                          )}
                         </td>
 
                         {/* 2. วันที่ / เดือน (มิ.ย.-2021) */}
-                        <td className="py-2.5 px-4 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
-                          {row.monthLabel}
+                        <td className="py-2.5 px-2 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 truncate">
+                          <div className="flex items-center justify-center gap-1">
+                            <span>{row.monthLabel}</span>
+                            {isCurrent && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold">
+                                ปัจจุบัน
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* 3. คงเหลือ (Net balance e.g. ฿ -, ฿ 530.00, ฿ (846.60)) */}
                         <td
-                          className={`py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-medium ${
+                          className={`py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-medium truncate ${
                             isZeroNet
                               ? 'text-slate-400 dark:text-slate-500'
                               : isNegNet
@@ -604,27 +800,27 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                         </td>
 
                         {/* 4. เจ (Je) */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
+                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
                           {formatCurrencySpreadsheet(row.person_a)}
                         </td>
 
                         {/* 5. เมย์ (May) */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
+                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 truncate">
                           {formatCurrencySpreadsheet(row.person_b)}
                         </td>
 
                         {/* 6. อื่นๆ (Other) */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 truncate">
                           {formatCurrencySpreadsheet(row.other)}
                         </td>
 
                         {/* 7. รวมรายรับ (Total Income) */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                        <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-black text-emerald-600 dark:text-emerald-400 truncate">
                           {formatCurrency(row.totalIncome)}
                         </td>
 
                         {/* 8. แก้ไข (Edit) */}
-                        <td className="py-2.5 px-3 text-center">
+                        <td className="py-2.5 px-1 text-center">
                           <button
                             onClick={() => handleOpenEditIncome(row.monthKey)}
                             className="p-1 text-slate-400 hover:text-emerald-600 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -641,25 +837,25 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                 {/* Table Footer */}
                 <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
                   <tr>
-                    <td colSpan={2} className="py-3 px-4 text-center text-slate-700 dark:text-slate-300">
+                    <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
                       รวมทั้งหมด ({allIncomeRows.length} เดือน)
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-500">
+                    <td className="py-3 px-2 text-right text-slate-500">
                       -
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 font-black">
+                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
                       {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_a, 0))}
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 font-black">
+                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
                       {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.person_b, 0))}
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 font-black">
+                    <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300 font-black truncate">
                       {formatCurrency(allIncomeRows.reduce((acc, r) => acc + r.other, 0))}
                     </td>
-                    <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black text-sm">
+                    <td className="py-3 px-2 text-right text-emerald-600 dark:text-emerald-400 font-black truncate">
                       {formatCurrency(totalIncomeAllMonths)}
                     </td>
-                    <td className="py-3 px-3 text-center text-slate-400">
+                    <td className="py-3 px-1 text-center text-slate-400">
                       -
                     </td>
                   </tr>
@@ -676,142 +872,389 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       {/* ============================================================== */}
       {activeTab === 'expenses' && (
         <div className="space-y-4">
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                
-                {/* Header */}
-                <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
-                  <tr>
-                    <th className="py-3 px-3 w-12 border-r border-slate-200 dark:border-slate-700">
-                      ลำดับ
-                    </th>
-                    <th className="py-3 px-4 w-28 border-r border-slate-200 dark:border-slate-700">
-                      เดือน
-                    </th>
-                    <th className="py-3 px-4 w-32 border-r border-slate-200 dark:border-slate-700 text-right bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200">
-                      ยอดประมาณการ
-                    </th>
-                    <th className="py-3 px-4 w-32 border-r border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
-                      จ่ายจริง
-                    </th>
-                    <th className="py-3 px-4 w-28 border-r border-slate-200 dark:border-slate-700 text-right">
-                      ผลต่าง
-                    </th>
-                    {/* Recurring bill item columns */}
-                    {expenses.map(e => (
-                      <th
-                        key={e.id}
-                        className="py-3 px-3 min-w-[100px] border-r border-slate-200 dark:border-slate-700 text-right whitespace-nowrap"
-                      >
-                        <span className="mr-1">{e.icon}</span>
-                        <span>{e.title}</span>
+          
+          {/* 📍 2.1 แถวสรุปและเช็คบิลรอบเดือนปัจจุบันเสมอ (ตามพื้นที่วงสีแดง) */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-transparent border-2 border-rose-500/30 dark:border-rose-500/40 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>เดือนปัจจุบัน</span>
+                </span>
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  {formatSpreadsheetMonth(currentMonthKey)} ({getMonthLabel(currentMonthKey)})
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:inline">
+                  • รายจ่ายรอบเดือนปัจจุบันและรายการบิล
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">ยอดประมาณการ</span>
+                  <span className="text-sm sm:text-base font-black text-amber-800 dark:text-amber-300">
+                    {formatCurrency(currentExpenseRow?.estimatedTotal || 0)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">จ่ายจริงรอบนี้</span>
+                  <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
+                    {formatCurrency(currentExpenseRow?.actualTotal || 0)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">ผลต่าง</span>
+                  <span
+                    className={`text-sm sm:text-base font-black ${
+                      (currentExpenseRow?.difference || 0) < 0
+                        ? 'text-rose-600'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {(currentExpenseRow?.difference || 0) < 0
+                      ? `-${formatCurrency(Math.abs(currentExpenseRow?.difference || 0), false)}`
+                      : `+${formatCurrency(currentExpenseRow?.difference || 0, false)}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Bill Checkchips for current month */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-rose-200/50 dark:border-rose-900/30 text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">
+                  ตรวจบิลเดือนนี้:
+                </span>
+                {expenses.map(item => {
+                  const amt = getExpenseAmountForMonth(item, currentMonthKey);
+                  const isPaid =
+                    item.lastPaidMonth === currentMonthKey ||
+                    (currentMonthKey === getCurrentYearMonth() && item.isPaidThisMonth);
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onToggleExpensePaid(item.id)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 transition whitespace-nowrap ${
+                        isPaid
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 shadow-2xs'
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.title}</span>
+                      {isPaid ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <span className="text-[10px] text-slate-400">({formatCurrency(amt, false)})</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setActiveTab('budget')}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs whitespace-nowrap hover:opacity-90 transition shadow-xs flex-shrink-0 self-start sm:self-auto"
+              >
+                จัดการประมาณการ & บิล ➔
+              </button>
+            </div>
+          </div>
+
+          {/* 2.2 ตารางรายจ่าย (ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวา) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
+            <div className="overflow-y-auto max-h-[700px] w-full">
+              
+              {/* VIEW MODE 1: FIT SCREEN (พอดีจอ 100% ไม่มีแถบสไลด์ซ้ายขวา) */}
+              {expenseTableViewMode === 'fit' ? (
+                <table className="w-full table-fixed text-left text-xs border-collapse">
+                  <colgroup>
+                    <col className="w-[6%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
+                    <tr>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
+                        ลำดับ
                       </th>
-                    ))}
-                    <th className="py-3 px-3 w-28 border-r border-slate-200 dark:border-slate-700 text-right">
-                      ย่อย/ถอน
-                    </th>
-                    <th className="py-3 px-3 w-24 text-center">
-                      สถานะ
-                    </th>
-                  </tr>
-                </thead>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700">
+                        เดือน
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200">
+                        ยอดประมาณการ
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
+                        จ่ายจริง
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-right">
+                        ผลต่าง
+                      </th>
+                      <th className="py-3 px-2 border-r border-slate-200 dark:border-slate-700 text-center">
+                        สถานะบิล
+                      </th>
+                      <th className="py-3 px-2 text-center">
+                        แจกแจงบิล
+                      </th>
+                    </tr>
+                  </thead>
 
-                {/* Body */}
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
-                  {displayExpenseRows.map(row => {
-                    const isOverBudget = row.difference < 0;
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
+                    {displayExpenseRows.map(row => {
+                      const isOverBudget = row.difference < 0;
+                      const isCurrent = row.monthKey === currentMonthKey;
+                      const isExpanded = expandedMonthKey === row.monthKey;
 
-                    return (
-                      <tr
-                        key={row.monthKey}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
-                      >
-                        {/* 1. ลำดับ */}
-                        <td className="py-2.5 px-3 text-center text-slate-500 border-r border-slate-100 dark:border-slate-800">
-                          {row.index}
-                        </td>
-
-                        {/* 2. เดือน */}
-                        <td className="py-2.5 px-4 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
-                          {row.monthLabel}
-                        </td>
-
-                        {/* 3. ยอดประมาณการ */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-bold text-amber-800 dark:text-amber-300 bg-amber-50/30 dark:bg-amber-950/10">
-                          {formatCurrency(row.estimatedTotal)}
-                        </td>
-
-                        {/* 4. จ่ายจริง */}
-                        <td className="py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-black text-rose-600 dark:text-rose-400">
-                          {formatCurrency(row.actualTotal)}
-                        </td>
-
-                        {/* 5. ผลต่าง */}
-                        <td
-                          className={`py-2.5 px-4 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap font-bold ${
-                            isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                          }`}
-                        >
-                          {isOverBudget
-                            ? `-${formatCurrency(Math.abs(row.difference), false)}`
-                            : `+${formatCurrency(row.difference, false)}`}
-                        </td>
-
-                        {/* Each recurring item */}
-                        {expenses.map(e => {
-                          const val = row.items[e.id] ?? 0;
-                          return (
-                            <td
-                              key={e.id}
-                              className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-800 dark:text-slate-200"
-                            >
-                              {val > 0 ? formatCurrency(val, false) : '-'}
-                            </td>
-                          );
-                        })}
-
-                        {/* Adhoc */}
-                        <td className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-600 dark:text-slate-400">
-                          {row.adhocTotal > 0 ? formatCurrency(row.adhocTotal, false) : '-'}
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-2.5 px-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              row.paidCount === row.totalBills
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                      return (
+                        <React.Fragment key={row.monthKey}>
+                          <tr
+                            className={`transition-colors ${
+                              isCurrent
+                                ? 'bg-rose-50/60 dark:bg-rose-950/25 font-bold hover:bg-rose-100/50'
+                                : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
                             }`}
                           >
-                            {row.paidCount}/{row.totalBills} บิล
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                            {/* 1. ลำดับ */}
+                            <td className="py-2.5 px-2 text-center text-slate-500 border-r border-slate-100 dark:border-slate-800">
+                              {isCurrent ? (
+                                <span className="w-5 h-5 rounded-full bg-rose-600 text-white font-bold text-[10px] inline-flex items-center justify-center">
+                                  {row.index}
+                                </span>
+                              ) : (
+                                row.index
+                              )}
+                            </td>
 
-                {/* Footer */}
-                <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
-                  <tr>
-                    <td colSpan={2} className="py-3 px-4 text-center text-slate-700 dark:text-slate-300">
-                      รวมทั้งหมด ({allExpenseRows.length} เดือน)
-                    </td>
-                    <td className="py-3 px-4 text-right text-amber-800 dark:text-amber-300 font-black">
-                      {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.estimatedTotal, 0))}
-                    </td>
-                    <td className="py-3 px-4 text-right text-rose-600 dark:text-rose-400 font-black">
-                      {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.actualTotal, 0))}
-                    </td>
-                    <td colSpan={expenses.length + 3} className="py-3 px-4 text-slate-400 text-right">
-                      ยอดรวมประเมิน vs จ่ายจริงสะสม
-                    </td>
-                  </tr>
-                </tfoot>
+                            {/* 2. เดือน */}
+                            <td className="py-2.5 px-2 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 truncate">
+                              <div className="flex items-center justify-center gap-1">
+                                <span>{row.monthLabel}</span>
+                                {isCurrent && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-600 text-white font-bold">
+                                    ปัจจุบัน
+                                  </span>
+                                )}
+                              </div>
+                            </td>
 
-              </table>
+                            {/* 3. ยอดประมาณการ */}
+                            <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-amber-800 dark:text-amber-300 bg-amber-50/20 dark:bg-amber-950/10 truncate">
+                              {formatCurrency(row.estimatedTotal)}
+                            </td>
+
+                            {/* 4. จ่ายจริง */}
+                            <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-black text-rose-600 dark:text-rose-400 truncate">
+                              {formatCurrency(row.actualTotal)}
+                            </td>
+
+                            {/* 5. ผลต่าง */}
+                            <td
+                              className={`py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 font-bold truncate ${
+                                isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                              }`}
+                            >
+                              {isOverBudget
+                                ? `-${formatCurrency(Math.abs(row.difference), false)}`
+                                : `+${formatCurrency(row.difference, false)}`}
+                            </td>
+
+                            {/* 6. สถานะ */}
+                            <td className="py-2.5 px-2 text-center border-r border-slate-100 dark:border-slate-800">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  row.paidCount === row.totalBills
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}
+                              >
+                                {row.paidCount}/{row.totalBills} บิล
+                              </span>
+                            </td>
+
+                            {/* 7. แจกแจงบิล (Accordion toggle) */}
+                            <td className="py-2.5 px-2 text-center">
+                              <button
+                                onClick={() =>
+                                  setExpandedMonthKey(prev => (prev === row.monthKey ? null : row.monthKey))
+                                }
+                                className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold inline-flex items-center gap-1 transition"
+                              >
+                                <span>{isExpanded ? 'ย่อ' : 'ดูบิล'}</span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-3 h-3" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3" />
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded detail row showing every recurring bill for this month */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
+                              <td colSpan={7} className="p-3 sm:p-4">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    <span className="flex items-center gap-1.5">
+                                      <Receipt className="w-4 h-4 text-emerald-600" />
+                                      <span>รายละเอียดค่าใช้จ่ายประจำเดือน {row.monthLabel}</span>
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-normal">
+                                      รวม {expenses.length} รายการหลัก + รายจ่ายย่อย ({formatCurrency(row.adhocTotal)})
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                                    {expenses.map(exp => {
+                                      const val = row.items[exp.id] ?? 0;
+                                      return (
+                                        <div
+                                          key={exp.id}
+                                          className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs"
+                                        >
+                                          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span className="flex items-center gap-1 truncate font-medium">
+                                              <span>{exp.icon}</span>
+                                              <span className="truncate">{exp.title}</span>
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                              งบ {formatCurrency(getExpenseEstimatedAmount(exp), false)}
+                                            </span>
+                                          </div>
+                                          <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                                            {val > 0 ? formatCurrency(val) : '-'}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* Footer */}
+                  <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
+                    <tr>
+                      <td colSpan={2} className="py-3 px-2 text-center text-slate-700 dark:text-slate-300">
+                        รวมทั้งหมด ({allExpenseRows.length} เดือน)
+                      </td>
+                      <td className="py-3 px-2 text-right text-amber-800 dark:text-amber-300 font-black truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.estimatedTotal, 0))}
+                      </td>
+                      <td className="py-3 px-2 text-right text-rose-600 dark:text-rose-400 font-black truncate">
+                        {formatCurrency(allExpenseRows.reduce((acc, r) => acc + r.actualTotal, 0))}
+                      </td>
+                      <td colSpan={3} className="py-3 px-2 text-slate-500 text-right text-[11px]">
+                        ยอดรวมงบประมาณการ vs จ่ายจริงสะสม
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                /* VIEW MODE 2: FULL SPREADSHEET (ตารางเต็มแยกทุกคอลัมน์บิล) */
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-center">
+                    <tr>
+                      <th className="py-3 px-2 w-12 border-r border-slate-200 dark:border-slate-700">
+                        ลำดับ
+                      </th>
+                      <th className="py-3 px-3 w-24 border-r border-slate-200 dark:border-slate-700">
+                        เดือน
+                      </th>
+                      <th className="py-3 px-3 w-28 border-r border-slate-200 dark:border-slate-700 text-right bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200">
+                        ยอดประมาณการ
+                      </th>
+                      <th className="py-3 px-3 w-28 border-r border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
+                        จ่ายจริง
+                      </th>
+                      <th className="py-3 px-3 w-24 border-r border-slate-200 dark:border-slate-700 text-right">
+                        ผลต่าง
+                      </th>
+                      {expenses.map(e => (
+                        <th
+                          key={e.id}
+                          className="py-3 px-2 min-w-[90px] border-r border-slate-200 dark:border-slate-700 text-right whitespace-nowrap"
+                        >
+                          <span className="mr-1">{e.icon}</span>
+                          <span>{e.title}</span>
+                        </th>
+                      ))}
+                      <th className="py-3 px-2 w-20 border-r border-slate-200 dark:border-slate-700 text-right">
+                        ย่อย/ถอน
+                      </th>
+                      <th className="py-3 px-2 w-20 text-center">
+                        สถานะ
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 font-medium">
+                    {displayExpenseRows.map(row => {
+                      const isOverBudget = row.difference < 0;
+                      return (
+                        <tr
+                          key={row.monthKey}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                        >
+                          <td className="py-2.5 px-2 text-center text-slate-500 border-r border-slate-100 dark:border-slate-800">
+                            {row.index}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">
+                            {row.monthLabel}
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold text-amber-800 dark:text-amber-300 bg-amber-50/20 whitespace-nowrap">
+                            {formatCurrency(row.estimatedTotal)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                            {formatCurrency(row.actualTotal)}
+                          </td>
+                          <td
+                            className={`py-2.5 px-3 text-right border-r border-slate-100 dark:border-slate-800 font-bold whitespace-nowrap ${
+                              isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {isOverBudget
+                              ? `-${formatCurrency(Math.abs(row.difference), false)}`
+                              : `+${formatCurrency(row.difference, false)}`}
+                          </td>
+                          {expenses.map(e => {
+                            const val = row.items[e.id] ?? 0;
+                            return (
+                              <td
+                                key={e.id}
+                                className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-800 dark:text-slate-200"
+                              >
+                                {val > 0 ? formatCurrency(val, false) : '-'}
+                              </td>
+                            );
+                          })}
+                          <td className="py-2.5 px-2 text-right border-r border-slate-100 dark:border-slate-800 whitespace-nowrap text-slate-600">
+                            {row.adhocTotal > 0 ? formatCurrency(row.adhocTotal, false) : '-'}
+                          </td>
+                          <td className="py-2.5 px-2 text-center">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600">
+                              {row.paidCount}/{row.totalBills}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+
             </div>
           </div>
         </div>
@@ -823,8 +1266,34 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       {activeTab === 'budget' && (
         <div className="space-y-6">
           
+          {/* Header Row of Tab 3 with prominent "+ เพิ่มรายจ่ายประจำเดือน" button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                <SlidersHorizontal className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">
+                  จัดการยอดประมาณการ & รายจ่ายประจำเดือน
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  เพิ่มรายการบิลใหม่ กำหนดยอดงบประมาณ และแก้ไขได้ตลอดเวลา (เชื่อมต่อตารางรายจ่ายอัตโนมัติ)
+                </p>
+              </div>
+            </div>
+
+            {/* Direct Add Button right on Tab 3! */}
+            <button
+              onClick={() => onOpenExpenseModal(null)}
+              className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ เพิ่มรายจ่ายประจำเดือน</span>
+            </button>
+          </div>
+
           {/* Month Selector for Checklist */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <div>
@@ -843,7 +1312,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
+                className="px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
               >
                 {allRecordedMonths.map(m => (
                   <option key={m} value={m}>
@@ -862,19 +1331,10 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
             </div>
           </div>
 
-          {/* Prompt explaining: "ยอดประมาณการก็ ใส่ตอนเพิ่มรายจ่าย หรือสามารถแก้ทีหลังได้" */}
-          <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
-            <span className="text-base flex-shrink-0">💡</span>
-            <div>
-              <span className="font-bold">จัดการยอดประมาณการประจำเดือน (Budget):</span>
-              <p className="mt-0.5 text-emerald-800/90 dark:text-emerald-300/90">
-                คุณสามารถกดปุ่ม <span className="font-bold">✏️ แก้ไขประมาณการ</span> ที่การ์ดแต่ละรายการด้านล่าง เพื่อเปลี่ยนยอดงบประมาณได้ทันที หรือกดแก้ไขเพื่อเปลี่ยนชื่อ/หมวดหมู่/รูปแบบบิล
-              </p>
-            </div>
-          </div>
-
-          {/* Recurring Expense Cards Grid */}
+          {/* Recurring Expense Cards Grid with prominent Add Card */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            {/* Cards for each expense */}
             {recurringItemsSelectedMonth.map(item => {
               const isEditingThisEstimated = editingEstimatedExpId === item.id;
               const isEditingThisBill = editingBillId === item.id;
@@ -1044,6 +1504,25 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                 </div>
               );
             })}
+
+            {/* Direct "+ เพิ่มรายจ่ายประจำใหม่" Card */}
+            <button
+              onClick={() => onOpenExpenseModal(null)}
+              className="p-6 rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all flex flex-col items-center justify-center gap-3 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 group min-h-[180px]"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition shadow-xs">
+                <PlusCircle className="w-6 h-6" />
+              </div>
+              <div className="text-center">
+                <span className="font-bold text-sm block text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                  + เพิ่มรายจ่ายประจำเดือนใหม่
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  กำหนดชื่อ, ไอคอน, รูปแบบบิล และยอดประมาณการ
+                </span>
+              </div>
+            </button>
+
           </div>
 
         </div>
