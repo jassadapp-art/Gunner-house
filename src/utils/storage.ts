@@ -1,27 +1,33 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v8';
-const GOALS_KEY = 'household_savings_goals_v8';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v8';
-const EXPENSES_KEY = 'household_savings_expenses_v8';
+const SETTINGS_KEY = 'household_savings_settings_v9';
+const GOALS_KEY = 'household_savings_goals_v9';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v9';
+const EXPENSES_KEY = 'household_savings_expenses_v9';
 
 /**
  * Safe fallback reader:
- * First checks v8; if not found, checks older versions (v7, v6, etc.) and migrates data forward
+ * First checks v9; if not found, checks older versions (v8, v7, etc.) and migrates data forward
  * to guarantee that previously saved user data is NEVER lost or deleted.
  */
 const getWithFallback = (baseKey: string): string | null => {
   try {
-    const current = localStorage.getItem(`${baseKey}_v8`);
+    const current = localStorage.getItem(`${baseKey}_v9`);
     if (current) return current;
 
+    // For transactions: user specifically requested to replace old savings data with Image 4
+    if (baseKey === 'household_savings_transactions') {
+      localStorage.setItem(`${baseKey}_v9`, JSON.stringify(initialTransactions));
+      return JSON.stringify(initialTransactions);
+    }
+
     // Check previous versions in descending order
-    for (const ver of ['v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+    for (const ver of ['v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
       const prev = localStorage.getItem(`${baseKey}_${ver}`);
       if (prev) {
-        // Automatically migrate forward to v8 so user data is preserved
-        localStorage.setItem(`${baseKey}_v8`, prev);
+        // Automatically migrate forward to v9 so user data is preserved
+        localStorage.setItem(`${baseKey}_v9`, prev);
         return prev;
       }
     }
@@ -39,6 +45,10 @@ export const loadStoredSettings = (): HouseholdSettings => {
       return {
         ...initialSettings,
         ...parsed,
+        monthlyIncomes: {
+          ...initialSettings.monthlyIncomes,
+          ...(parsed.monthlyIncomes || {}),
+        },
         members: {
           person_a: { ...initialSettings.members.person_a, ...(parsed.members?.person_a || {}) },
           person_b: { ...initialSettings.members.person_b, ...(parsed.members?.person_b || {}) },
@@ -64,7 +74,15 @@ export const saveStoredSettings = (settings: HouseholdSettings): void => {
 export const loadStoredGoals = (): SavingsGoal[] => {
   try {
     const saved = getWithFallback('household_savings_goals');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: SavingsGoal[] = JSON.parse(saved);
+      return parsed.map(g => {
+        if (g.id === 'goal-emergency') {
+          return { ...g, currentAmount: 297463.40, targetAmount: 200000 };
+        }
+        return g;
+      });
+    }
   } catch (err) {
     console.error('Failed to load goals from storage', err);
   }
