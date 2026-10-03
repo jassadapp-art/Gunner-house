@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { HouseholdSettings, MonthlyExpense, Transaction } from '../types';
 import {
   formatCurrency,
@@ -101,6 +101,37 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
 
   // Selected year for transposed view
   const [selectedYear, setSelectedYear] = useState<string>(() => currentMonthKey.slice(0, 4));
+
+  // Refs for auto-scrolling to current month column (Request 2: "คอลัมที่โชวจะต้องเห็นคอลัมปัจจุบันก่อนเสมอ (รูปที่3)")
+  const incomeScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const expenseScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const incomeCurrentMonthThRef = useRef<HTMLTableCellElement | null>(null);
+  const expenseCurrentMonthThRef = useRef<HTMLTableCellElement | null>(null);
+
+  const scrollToCurrentMonth = (behavior: ScrollBehavior = 'smooth') => {
+    const th = activeTab === 'incomes' ? incomeCurrentMonthThRef.current : expenseCurrentMonthThRef.current;
+    const container = activeTab === 'incomes' ? incomeScrollContainerRef.current : expenseScrollContainerRef.current;
+
+    if (th && container) {
+      const thLeft = th.offsetLeft;
+      const thWidth = th.offsetWidth;
+      const containerWidth = container.clientWidth;
+      // Scroll so current month is clearly visible with summary columns on the right (matching Image 3)
+      const targetScroll = Math.max(0, thLeft + thWidth + 240 - containerWidth);
+      container.scrollTo({ left: targetScroll, behavior });
+    } else if (th) {
+      th.scrollIntoView({ behavior, inline: 'center', block: 'nearest' });
+    }
+  };
+
+  useEffect(() => {
+    if (tableOrientation === 'transposed') {
+      const timer = setTimeout(() => {
+        scrollToCurrentMonth('auto');
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [tableOrientation, activeTab, selectedYear, sortOrder]);
 
   // Table display mode for Expenses: 'fit' (100% width, no horizontal scroll) vs 'full' (all bill columns)
   const [expenseTableViewMode, setExpenseTableViewMode] = useState<'fit' | 'full'>('fit');
@@ -870,6 +901,19 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
               >
                 ทุกปี ({allRecordedMonths.length} เดือน)
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedYear(currentMonthKey.slice(0, 4));
+                  setTimeout(() => scrollToCurrentMonth('smooth'), 50);
+                }}
+                className="ml-auto px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-bold transition flex items-center gap-1 shrink-0"
+                title="เลื่อนหน้าจอไปยังเดือนปัจจุบันทันที"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>📍 ไปที่เดือนปัจจุบัน</span>
+              </button>
             </div>
           )}
 
@@ -983,7 +1027,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
           {tableOrientation === 'transposed' ? (
             /* TRANSPOSED INCOMES TABLE (เดือนเป็นคอลัมน์ แหล่งรายรับเป็นแถว) */
             <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
-              <div className="overflow-x-auto max-w-full">
+              <div ref={incomeScrollContainerRef} className="overflow-x-auto max-w-full">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
                     <tr>
@@ -1003,6 +1047,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                         return (
                           <th
                             key={mKey}
+                            ref={isCurrent ? incomeCurrentMonthThRef : undefined}
                             className={`py-3 px-3 min-w-[105px] text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap ${
                               isCurrent
                                 ? 'bg-emerald-100/80 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-black'
@@ -1613,7 +1658,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
           {tableOrientation === 'transposed' ? (
             /* TRANSPOSED EXPENSES TABLE (เดือนเป็นคอลัมน์ รายการรายจ่ายเป็นแถว) */
             <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden w-full">
-              <div className="overflow-x-auto max-w-full">
+              <div ref={expenseScrollContainerRef} className="overflow-x-auto max-w-full">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-300 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">
                     <tr>
@@ -1633,6 +1678,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                         return (
                           <th
                             key={mKey}
+                            ref={isCurrent ? expenseCurrentMonthThRef : undefined}
                             className={`py-3 px-3 min-w-[110px] text-right border-r border-slate-200 dark:border-slate-700 whitespace-nowrap ${
                               isCurrent
                                 ? 'bg-rose-100/80 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200 font-black'
