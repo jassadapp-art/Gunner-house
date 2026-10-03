@@ -43,6 +43,7 @@ interface AddTransactionModalProps {
   initialGoalId?: string;
   initialFund?: HouseholdFundType;
   initialType?: TransactionType;
+  initialCategory?: string;
   longTermBalance?: number;
   operatingBalance?: number;
   goals: SavingsGoal[];
@@ -58,6 +59,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   initialGoalId,
   initialFund,
   initialType,
+  initialCategory,
   longTermBalance = 357189.69,
   operatingBalance = 31037.50,
   goals,
@@ -97,7 +99,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setAmount('');
       const chosenGoalId = initialGoalId || (goals.length > 0 ? goals[0].id : '');
       setGoalId(chosenGoalId);
-      if (chosenGoalId) {
+      if (initialCategory) {
+        setCategory(initialCategory);
+      } else if (chosenGoalId) {
         const found = goals.find(g => g.id === chosenGoalId);
         if (found) setCategory(found.category);
       } else {
@@ -107,7 +111,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setNote('');
     }
     setError('');
-  }, [editingTransaction, isOpen, initialContributor, initialGoalId, initialFund, initialType, goals]);
+  }, [editingTransaction, isOpen, initialContributor, initialGoalId, initialFund, initialType, initialCategory, goals]);
 
   if (!isOpen) return null;
 

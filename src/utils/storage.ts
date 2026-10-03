@@ -34,7 +34,19 @@ const getWithFallback = (baseKey: string): string | null => {
 export const loadStoredSettings = (): HouseholdSettings => {
   try {
     const saved = getWithFallback('household_savings_settings');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...initialSettings,
+        ...parsed,
+        members: {
+          person_a: { ...initialSettings.members.person_a, ...(parsed.members?.person_a || {}) },
+          person_b: { ...initialSettings.members.person_b, ...(parsed.members?.person_b || {}) },
+        },
+        investments: parsed.investments && parsed.investments.length > 0 ? parsed.investments : initialSettings.investments,
+        taxProfiles: parsed.taxProfiles || initialSettings.taxProfiles,
+      };
+    }
   } catch (err) {
     console.error('Failed to load settings from storage', err);
   }
