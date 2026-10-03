@@ -15,13 +15,12 @@ import {
   Edit2,
   Trash2,
   Search,
-  ArrowDownCircle,
-  ArrowUpCircle,
   ArrowUpDown,
   BookOpen,
   Table,
   TrendingUp,
   TrendingDown,
+  Sparkles,
 } from 'lucide-react';
 
 interface SavingsViewProps {
@@ -355,11 +354,6 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
     };
   }, [displayTransposedMonths, totalEndingBalance]);
 
-  // Overall Goal Progress
-  const totalGoalTarget = useMemo(() => goals.reduce((acc, g) => acc + g.targetAmount, 0), [goals]);
-  const totalGoalCurrent = useMemo(() => goals.reduce((acc, g) => acc + g.currentAmount, 0), [goals]);
-  const overallGoalProgress = totalGoalTarget > 0 ? (totalGoalCurrent / totalGoalTarget) * 100 : 0;
-
   // Filtered Goals
   const filteredGoals = useMemo(() => {
     if (goalFilter === 'all') return goals;
@@ -375,49 +369,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   return (
     <div className="space-y-7 animate-in fade-in duration-300">
       
-      {/* 1. Header Banner matching MonthlyLedgerView */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-600/15 via-teal-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
-              หน้า 3
-            </span>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              ตารางสมุดเงินออมสะสม & เป้าหมายครอบครัว
-            </h2>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">
-            บันทึกรายการฝาก-ถอน สมุดบัญชีเงินออมสะสมจริง (คงเหลือสุทธิ 157,359.89 ฿) หักลบรายเดือนตามบันทึก พร้อมสรุปรายเดือนและเป้าหมาย
-          </p>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <button
-            onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
-            className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <ArrowDownCircle className="w-4 h-4" />
-            <span>+ ฝากเงินออม</span>
-          </button>
-
-          <button
-            onClick={() => onOpenCustomAdd(undefined, 'operating', 'withdrawal')}
-            className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-rose-600/20 transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <ArrowUpCircle className="w-4 h-4" />
-            <span>- ถอนเงิน</span>
-          </button>
-
-          <button
-            onClick={() => onOpenGoalModal(null)}
-            className="px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4 text-emerald-500" />
-            <span>เป้าหมายใหม่</span>
-          </button>
-        </div>
-      </div>
 
       {/* 2. Top 3 Summary KPI Cards matching MonthlyLedgerView */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
@@ -482,120 +434,81 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
       </div>
 
-      {/* 3. Sub-tabs / Mode Switcher matching MonthlyLedgerView */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Tab 1: Monthly Summary Ledger (like MonthlyLedgerView) */}
-          <button
-            onClick={() => {
-              setActiveTab('monthly');
-            }}
-            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-              activeTab === 'monthly'
-                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Table className="w-4 h-4" />
-            <span>1. สรุปเงินออมรายเดือน (เหมือนหน้ารายละเอียดรายเดือน)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'monthly' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
-              {monthlySavingsData.length} ด.
-            </span>
-          </button>
-
-          {/* Tab 2: Passbook Table (Image 4) */}
-          <button
-            onClick={() => {
-              setActiveTab('passbook');
-              setTableOrientation('vertical');
-            }}
-            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-              activeTab === 'passbook'
-                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>2. สมุดบัญชีเงินออม (ตามรูปที่ 4)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'passbook' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
-              {allPassbookRows.length} รายการ
-            </span>
-          </button>
-
-          {/* Tab 3: Goals & Funds */}
-          <button
-            onClick={() => {
-              setActiveTab('goals');
-            }}
-            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-              activeTab === 'goals'
-                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Target className="w-4 h-4" />
-            <span>3. กองทุน & เป้าหมายการออม</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'goals' ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
-              {goals.length}
-            </span>
-          </button>
-        </div>
-
-        <span className="text-[11px] text-slate-400 hidden lg:inline">
-          {activeTab === 'monthly'
-            ? 'ตารางเงินออมรายเดือน: สลับแนวนอน/แนวตั้งได้ พร้อมคงเหลือสะสมสุทธิ 157,359.89 ฿'
-            : activeTab === 'passbook'
-            ? 'คอลัมน์: ลำดับ | วันที่ | ฝาก/ถอน | คงเหลือสะสม | รายละเอียด'
-            : `ความคืบหน้ารวมเป้าหมาย ${overallGoalProgress.toFixed(1)}%`}
-        </span>
-      </div>
-
-      {/* 4. Controls & Year Filter Bar matching MonthlyLedgerView */}
-      {activeTab !== 'goals' && (
-        <div className="space-y-3">
+      {/* 3. Controls & View Switcher Toolbar */}
+      <div className="space-y-3">
+        {/* Main Toolbar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
           
-          {/* Toolbar: Orientation Toggle + Search + Sort */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-            
-            {/* View Mode Toggle: Transposed vs Vertical (for monthly tab) */}
-            {activeTab === 'monthly' ? (
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start">
-                <button
-                  onClick={() => setTableOrientation('transposed')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    tableOrientation === 'transposed'
-                      ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                  title="แสดงตารางแบบแนวนอน (เดือนเป็นคอลัมน์ เหมือนหน้ารายละเอียดรายเดือน)"
-                >
-                  <Table className="w-3.5 h-3.5" />
-                  <span>🔄 สลับแถว⇄คอลัมน์ (แนวนอน)</span>
-                </button>
+          {/* View Modes Switcher */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start">
+            <button
+              onClick={() => {
+                setActiveTab('monthly');
+                setTableOrientation('transposed');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'monthly' && tableOrientation === 'transposed'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="ตารางรายเดือนแนวนอน (เดือนเป็นคอลัมน์)"
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>🔄 แนวนอน</span>
+            </button>
 
-                <button
-                  onClick={() => setTableOrientation('vertical')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    tableOrientation === 'vertical'
-                      ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                  title="แสดงตารางรายเดือนแบบแนวตั้ง (เดือนเป็นแถว)"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>📋 ตารางรายเดือน (แนวตั้ง)</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <BookOpen className="w-4 h-4 text-emerald-600" />
-                <span>สมุดบัญชีเงินออมจริง (88 รายการสุทธิ)</span>
-              </div>
-            )}
+            <button
+              onClick={() => {
+                setActiveTab('monthly');
+                setTableOrientation('vertical');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'monthly' && tableOrientation === 'vertical'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="ตารางรายเดือนแนวตั้ง (เดือนเป็นแถว)"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>📋 แนวตั้ง</span>
+            </button>
 
-            {/* Search Input & Sort Button */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+            <button
+              onClick={() => {
+                setActiveTab('passbook');
+                setTableOrientation('vertical');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'passbook'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="สมุดบัญชีเงินออมจริง"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>📖 สมุดบัญชี</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('goals');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'goals'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="เป้าหมาย & กองทุนการออม"
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>🎯 เป้าหมาย ({goals.length})</span>
+            </button>
+          </div>
+
+          {/* Search, Sort & Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {activeTab !== 'goals' && (
+              <div className="relative min-w-[180px] flex-1 sm:flex-initial">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -605,35 +518,46 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                   className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            )}
 
-              {(activeTab === 'passbook' || (activeTab === 'monthly' && tableOrientation === 'vertical')) && (
-                <button
-                  onClick={() =>
-                    setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
-                  }
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-                  title="สลับลำดับการแสดงผล"
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>
-                    {sortOrder === 'chronological'
-                      ? 'เก่า ➔ ใหม่'
-                      : 'ล่าสุดก่อน'}
-                  </span>
-                </button>
-              )}
-
+            {(activeTab === 'passbook' || (activeTab === 'monthly' && tableOrientation === 'vertical')) && (
               <button
-                onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
-                className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-xs font-bold hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
+                onClick={() =>
+                  setSortOrder(prev => (prev === 'chronological' ? 'latest' : 'chronological'))
+                }
+                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+                title="สลับลำดับการแสดงผล"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>เพิ่มรายการ</span>
+                <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500" />
+                <span>
+                  {sortOrder === 'chronological'
+                    ? 'เก่า ➔ ใหม่'
+                    : 'ล่าสุดก่อน'}
+                </span>
               </button>
-            </div>
-          </div>
+            )}
 
-          {/* Year Filter Pills matching MonthlyLedgerView */}
+            {/* Quick Actions */}
+            <button
+              onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ ฝากเงินออม</span>
+            </button>
+
+            <button
+              onClick={() => onOpenCustomAdd(undefined, 'operating', 'withdrawal')}
+              className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+            >
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span>- ถอนเงิน</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Year Filter Pills for Monthly & Passbook Views */}
+        {activeTab !== 'goals' && (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <span className="text-slate-400 font-bold mr-1 flex items-center gap-1 text-[11px] whitespace-nowrap">
               <span>📅</span>
@@ -662,10 +586,24 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             >
               ทุกปี
             </button>
-          </div>
 
-        </div>
-      )}
+            {tableOrientation === 'transposed' && activeTab === 'monthly' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedYear(currentMonthKey.slice(0, 4));
+                  setTimeout(() => scrollToCurrentMonth('smooth'), 50);
+                }}
+                className="ml-auto px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                title="เลื่อนหน้าจอไปยังเดือนปัจจุบันทันที"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>📍 ไปที่เดือนปัจจุบัน</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 5. TAB 2: PASSBOOK TABLE (ตามรูปที่ 4) */}
       {activeTab === 'passbook' && (

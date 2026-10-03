@@ -1,7 +1,6 @@
 import React from 'react';
 import type { HouseholdSettings, ActivePage } from '../types';
 import {
-  PlusCircle,
   Settings,
   PiggyBank,
   Receipt,
@@ -29,7 +28,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   activePage,
   onSelectPage,
-  onOpenAddModal,
   onOpenSettingsModal,
   onToggleTheme,
   onLockScreen,
@@ -190,15 +188,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Primary Action Button: Add Transaction */}
-              <button
-                onClick={onOpenAddModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition active:scale-95"
-              >
-                <PlusCircle className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">บันทึกเงินออม</span>
-                <span className="sm:hidden">หยอดเงิน</span>
-              </button>
 
             </div>
 

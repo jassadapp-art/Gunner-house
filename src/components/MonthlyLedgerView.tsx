@@ -207,18 +207,6 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
     }
   };
 
-  const handleSaveAllCurrentExpenses = () => {
-    expenses.forEach(e => {
-      const val = currentExpenseInputs[e.id];
-      if (val !== undefined && val.trim() !== '') {
-        const num = parseFloat(val);
-        if (!isNaN(num) && num >= 0) {
-          onUpdateExpenseBill(e.id, num);
-        }
-      }
-    });
-  };
-
   // Live expense calculation for current month based on real-time numeric inputs
   const liveCurrentExpenseTotal = useMemo(() => {
     return expenses.reduce((acc, e) => {
@@ -644,41 +632,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
-      {/* Header Banner */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-600/15 via-teal-500/10 to-transparent border border-emerald-500/20 backdrop-blur-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
-              หน้า 2
-            </span>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              ตารางรายรับ - รายจ่าย รายเดือน
-            </h2>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">
-            ตารางสรุปรายรับและรายจ่ายแบบรายเดือน พร้อมกำหนดและแก้ไขยอดประมาณการได้ตลอดเวลา
-          </p>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <button
-            onClick={() => onOpenAddTransactionModal('deposit', 'รายได้พิเศษ')}
-            className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ เพิ่มรายรับพิเศษ</span>
-          </button>
-
-          <button
-            onClick={() => onOpenExpenseModal(null)}
-            className="px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ เพิ่มรายจ่ายประจำ</span>
-          </button>
-        </div>
-      </div>
 
       {/* 3 Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -785,11 +739,23 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
 
         </div>
 
-        <span className="text-[11px] text-slate-400 self-end sm:self-center">
-          {activeTab === 'incomes' && 'คอลัมน์: ลำดับ | วันที่ | คงเหลือ | เจ | เมย์ | อื่นๆ | รวมรายรับ'}
-          {activeTab === 'expenses' && 'ความกว้างพอดีจอ 100% ไม่มีแถบเลื่อนซ้ายขวาด้านล่าง'}
-          {activeTab === 'budget' && 'เพิ่มและแก้ไขยอดประมาณการได้ทันที'}
-        </span>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={() => onOpenAddTransactionModal('deposit', 'รายได้พิเศษ')}
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>+ เพิ่มรายรับพิเศษ</span>
+          </button>
+
+          <button
+            onClick={() => onOpenExpenseModal(null)}
+            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>+ เพิ่มรายจ่ายประจำ</span>
+          </button>
+        </div>
       </div>
 
       {/* Toolbar: Search, Year Filter & Orientation Switch */}
@@ -1557,150 +1523,7 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
       {activeTab === 'expenses' && (
         <div className="space-y-4">
           
-          {/* 📍 2.1 แถวสรุปและเช็คบิลรอบเดือนปัจจุบันเสมอ (ตามพื้นที่วงสีแดง) */}
-          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-transparent border-2 border-rose-500/30 dark:border-rose-500/40 shadow-sm space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  <span>เดือนปัจจุบัน</span>
-                </span>
-                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                  {formatSpreadsheetMonth(currentMonthKey)} ({getMonthLabel(currentMonthKey)})
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:inline">
-                  • รายจ่ายรอบเดือนปัจจุบันและรายการบิล
-                </span>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block font-medium">ยอดประมาณการ</span>
-                  <span className="text-sm sm:text-base font-black text-amber-800 dark:text-amber-300">
-                    {formatCurrency(currentExpenseRow?.estimatedTotal || 0)}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block font-medium">จ่ายจริงรอบนี้</span>
-                  <span className="text-sm sm:text-base font-black text-rose-600 dark:text-rose-400">
-                    {formatCurrency(liveCurrentExpenseTotal)}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block font-medium">ผลต่าง</span>
-                  <span
-                    className={`text-sm sm:text-base font-black ${
-                      (currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal < 0
-                        ? 'text-rose-600'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                    }`}
-                  >
-                    {(currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal < 0
-                      ? `-${formatCurrency(Math.abs((currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal), false)}`
-                      : `+${formatCurrency((currentExpenseRow?.estimatedTotal || 0) - liveCurrentExpenseTotal, false)}`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Bill Inputs and Status for current month (Request 2: มีช่องใส่เป็นตัวเลขได้) */}
-            <div className="space-y-2.5 pt-2 border-t border-rose-200/50 dark:border-rose-900/30 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    ตรวจและกรอกยอดรายจ่ายรอบเดือนนี้:
-                  </span>
-                  <span className="text-[11px] text-slate-400 hidden sm:inline">
-                    (ใส่ตัวเลขยอดจริงแต่ละรายการได้ทันที บันทึกและคำนวณเข้าตารางอัตโนมัติ)
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={handleSaveAllCurrentExpenses}
-                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>💾 บันทึกยอดบิลทั้งหมด</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('budget')}
-                    className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs whitespace-nowrap hover:opacity-90 transition shadow-xs"
-                  >
-                    จัดการประมาณการ & บิล ➔
-                  </button>
-                </div>
-              </div>
-
-              {/* Numerical Input Chips/Cards matching user image */}
-              <div className="flex items-center gap-2 overflow-x-auto py-1.5 max-w-full">
-                {expenses.map(item => {
-                  const isPaid =
-                    item.lastPaidMonth === currentMonthKey ||
-                    (currentMonthKey === getCurrentYearMonth() && item.isPaidThisMonth);
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border transition shadow-2xs whitespace-nowrap flex-shrink-0 ${
-                        isPaid
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-400'
-                      }`}
-                    >
-                      <span className="text-base select-none">{item.icon}</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[125px] truncate" title={item.title}>
-                        {item.title}
-                      </span>
-
-                      {/* Number Input Field */}
-                      <div className="relative flex items-center ml-1">
-                        <span className="absolute left-2 text-[10px] text-slate-400 font-bold pointer-events-none select-none">฿</span>
-                        <input
-                          type="number"
-                          step="any"
-                          value={currentExpenseInputs[item.id] ?? ''}
-                          onChange={e => handleExpenseInputChange(item.id, e.target.value)}
-                          onBlur={() => handleExpenseInputBlur(item.id)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleExpenseInputBlur(item.id);
-                          }}
-                          placeholder="0.00"
-                          className="w-24 pl-5 pr-2 py-1 text-xs font-bold text-right rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
-                        />
-                      </div>
-
-                      {/* Paid / Unpaid Toggle Button */}
-                      <button
-                        type="button"
-                        onClick={() => onToggleExpensePaid(item.id)}
-                        className={`p-1.5 rounded-xl transition flex items-center gap-1 text-[11px] font-bold ${
-                          isPaid
-                            ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-500'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'
-                        }`}
-                        title={isPaid ? 'ชำระแล้ว (คลิกเพื่อยกเลิก)' : 'คลิกเพื่อระบุว่าชำระแล้ว'}
-                      >
-                        {isPaid ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                            <span className="text-[10px]">จ่ายแล้ว</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-3.5 h-3.5" />
-                            <span className="text-[10px]">ยังไม่จ่าย</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
 
           {/* 2.2 ตารางรายจ่าย (สลับแถว-คอลัมน์ หรือ แนวตั้ง) */}
           {tableOrientation === 'transposed' ? (
