@@ -609,6 +609,41 @@ export function App() {
     showToast('🔄 เคลียร์สถานะค่าใช้จ่ายทั้งหมดเป็นรอบเดือนใหม่เรียบร้อยแล้ว');
   };
 
+  // 8.3 Update Expense Estimated Amount (ยอดประมาณการประจำเดือน)
+  const handleUpdateExpenseEstimatedAmount = (expenseId: string, newEstimatedAmount: number) => {
+    setExpenses(prev =>
+      prev.map(e => {
+        if (e.id === expenseId) {
+          return {
+            ...e,
+            estimatedAmount: newEstimatedAmount,
+            amount: e.amountType === 'fixed' ? newEstimatedAmount : e.amount,
+          };
+        }
+        return e;
+      })
+    );
+    showToast('บันทึกยอดประมาณการประจำเดือนเรียบร้อยแล้ว 📊');
+  };
+
+  // 8.4 Update Monthly Income for a specific month (ตารางรายรับรายเดือน)
+  const handleUpdateMonthlyIncome = (
+    monthKey: string,
+    data: { person_a?: number; person_b?: number; other?: number; note?: string }
+  ) => {
+    setSettings(prev => ({
+      ...prev,
+      monthlyIncomes: {
+        ...(prev.monthlyIncomes || {}),
+        [monthKey]: {
+          ...(prev.monthlyIncomes?.[monthKey] || {}),
+          ...data,
+        },
+      },
+    }));
+    showToast(`บันทึกข้อมูลรายรับประจำเดือน ${monthKey} เรียบร้อย 💼`);
+  };
+
   // 9. Add dynamic custom category
   const handleAddCustomCategory = (newCat: string) => {
     const trimmed = newCat.trim();
@@ -769,6 +804,8 @@ export function App() {
             }}
             onToggleExpensePaid={handleToggleExpensePaid}
             onUpdateExpenseBill={handleUpdateExpenseBill}
+            onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
+            onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
             onDeleteExpense={handleDeleteExpense}
             onEditTransaction={tx => {
               setEditingTransaction(tx);
@@ -787,9 +824,9 @@ export function App() {
             transactions={transactions}
             onQuickAdd={handleQuickAdd}
             onQuickWithdraw={handleQuickWithdraw}
-            onOpenCustomAdd={(contributorId, fund) => {
+            onOpenCustomAdd={(contributorId, fund, type) => {
               setEditingTransaction(null);
-              setInitialType('deposit');
+              setInitialType(type || 'deposit');
               setInitialContributor(contributorId || 'person_a');
               setInitialGoalId(undefined);
               setInitialFund(fund || 'operating');
