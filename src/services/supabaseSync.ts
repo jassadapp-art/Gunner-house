@@ -38,6 +38,10 @@ export const sanitizeUrl = (url?: string): string => {
   }
 };
 
+export const DEFAULT_SUPABASE_URL = 'https://ciyjmpqgmjdzhgqezyeu.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeWptcHFnbWpkemhncWV6eWV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0OTE5NzksImV4cCI6MjEwNjA2Nzk3OX0.jrn7HXKjVf4gP9Fez8bUddv1--ajzFPN6EoRDvL_tZQ';
+
 let cachedClient: SupabaseClient | null = null;
 let currentChannel: RealtimeChannel | null = null;
 
@@ -82,15 +86,15 @@ export const getSupabaseConfig = () => {
     };
   }
 
-  const resolvedUrl = sanitizeUrl(localUrl || envUrl || '');
-  const anonKey = (localKey || envKey || '').trim();
+  const resolvedUrl = sanitizeUrl(localUrl || envUrl || DEFAULT_SUPABASE_URL);
+  const anonKey = (localKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();
 
   return {
     url: resolvedUrl,
     anonKey,
     isConfigured: Boolean(resolvedUrl && anonKey),
     isFromEnv: Boolean(envUrl && envKey),
-    isDefault: false,
+    isDefault: Boolean(!localUrl && !envUrl),
     isDisabled: false,
   };
 };

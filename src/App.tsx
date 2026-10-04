@@ -332,11 +332,36 @@ export function App() {
   }, [settings, goals, transactions, expenses]);
 
   // 3. Manual Sync Handler
-  const handleTriggerCloudSync = async () => {
+  const handlePushToCloud = async (): Promise<boolean> => {
     const config = getSupabaseConfig();
     if (!config.isConfigured) {
-      showToast('⚠️ กรุณาระบุ Supabase URL และ Key ก่อนซิงค์');
-      return;
+      showToast('⚠️ ยังไม่ได้เชื่อมต่อ Cloud');
+      return false;
+    }
+    setCloudStatus('syncing');
+    const nowIso = new Date().toISOString();
+    lastCloudUpdatedAtRef.current = nowIso;
+    const ok = await pushCloudHouseholdData({
+      settings,
+      goals,
+      transactions,
+      expenses,
+      updated_at: nowIso,
+    });
+    setCloudStatus(ok ? 'connected' : 'error');
+    if (ok) {
+      showToast('✅ อัปโหลดข้อมูลจากเครื่องนี้ขึ้น Cloud เรียบร้อยแล้ว');
+    } else {
+      showToast('❌ ไม่สามารถอัปโหลดได้ ตรวจสอบการเชื่อมต่อ');
+    }
+    return ok;
+  };
+
+  const handlePullFromCloud = async (): Promise<boolean> => {
+    const config = getSupabaseConfig();
+    if (!config.isConfigured) {
+      showToast('⚠️ ยังไม่ได้เชื่อมต่อ Cloud');
+      return false;
     }
     setCloudStatus('syncing');
     try {
@@ -349,26 +374,20 @@ export function App() {
         setTransactions(cloudData.transactions);
         if (cloudData.expenses) setExpenses(cloudData.expenses);
         setCloudStatus('connected');
-        showToast('✅ ดึงข้อมูลล่าสุดจาก Cloud เรียบร้อยแล้ว');
+        showToast('✅ ดึงข้อมูลล่าสุดจาก Cloud ลงเครื่องนี้เรียบร้อยแล้ว');
         setTimeout(() => {
           isRemoteUpdatingRef.current = false;
         }, 400);
+        return true;
       } else {
-        const nowIso = new Date().toISOString();
-        lastCloudUpdatedAtRef.current = nowIso;
-        const ok = await pushCloudHouseholdData({
-          settings,
-          goals,
-          transactions,
-          expenses,
-          updated_at: nowIso,
-        });
-        setCloudStatus(ok ? 'connected' : 'error');
-        showToast(ok ? '✅ อัปโหลดข้อมูลขึ้น Cloud สำเร็จ' : '❌ ไม่สามารถอัปโหลดได้');
+        showToast('⚠️ ไม่พบข้อมูลบน Cloud');
+        setCloudStatus('connected');
+        return false;
       }
     } catch {
       setCloudStatus('error');
-      showToast('❌ การซิงค์ขัดข้อง ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+      showToast('❌ การดึงข้อมูลขัดข้อง');
+      return false;
     }
   };
 
@@ -1135,7 +1154,8 @@ export function App() {
         onResetData={handleResetData}
         initialTab={settingsTab}
         cloudStatus={cloudStatus}
-        onTriggerCloudSync={handleTriggerCloudSync}
+        onPushToCloud={handlePushToCloud}
+        onPullFromCloud={handlePullFromCloud}
         onConfigSaved={() => {
           const cfg = getSupabaseConfig();
           setCloudStatus(cfg.isConfigured ? 'connected' : 'offline');

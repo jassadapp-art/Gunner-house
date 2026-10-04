@@ -51,7 +51,8 @@ interface SettingsModalProps {
   onResetData: () => void;
   initialTab?: 'profile' | 'security' | 'categories' | 'cloud' | 'data';
   cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
-  onTriggerCloudSync?: () => Promise<void>;
+  onPushToCloud?: () => Promise<boolean>;
+  onPullFromCloud?: () => Promise<boolean>;
   onConfigSaved?: () => void;
 }
 
@@ -69,7 +70,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetData,
   initialTab,
   cloudStatus = 'offline',
-  onTriggerCloudSync,
+  onPushToCloud,
+  onPullFromCloud,
   onConfigSaved,
 }) => {
   const [householdName, setHouseholdName] = useState(settings.householdName);
@@ -193,20 +195,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     navigator.clipboard.writeText(SUPABASE_SQL_SETUP);
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2500);
-  };
-
-  const handleManualSyncNow = async () => {
-    if (!onTriggerCloudSync) return;
-    setIsSyncingManual(true);
-    try {
-      await onTriggerCloudSync();
-      setCloudMsg('ซิงค์ข้อมูลขึ้น Cloud เรียบร้อยแล้ว!');
-      setTimeout(() => setCloudMsg(null), 3000);
-    } catch (err: any) {
-      setCloudMsg('เกิดข้อผิดพลาดในการซิงค์: ' + err?.message);
-    } finally {
-      setIsSyncingManual(false);
-    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -850,7 +838,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="submit"
                       disabled={testingConnection}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                     >
                       <span>💾 บันทึกและเชื่อมต่อ</span>
                     </button>
@@ -860,21 +848,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="button"
                     onClick={handleTestCloudConnection}
                     disabled={testingConnection || !supabaseUrl || !supabaseAnonKey}
-                    className="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium text-xs border border-slate-300 dark:border-slate-700 transition disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium text-xs border border-slate-300 dark:border-slate-700 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${testingConnection ? 'animate-spin' : ''}`} />
                     <span>{testingConnection ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}</span>
                   </button>
 
-                  {config.isConfigured && onTriggerCloudSync && (
+                  {config.isConfigured && onPushToCloud && (
                     <button
                       type="button"
-                      onClick={handleManualSyncNow}
+                      onClick={async () => {
+                        setIsSyncingManual(true);
+                        const ok = await onPushToCloud();
+                        setIsSyncingManual(false);
+                        setCloudMsg(ok ? 'อัปโหลดข้อมูลเครื่องนี้ขึ้น Cloud สำเร็จ!' : 'อัปโหลดไม่สำเร็จ');
+                        setTimeout(() => setCloudMsg(null), 3000);
+                      }}
                       disabled={isSyncingManual}
-                      className="px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-medium text-xs hover:bg-teal-100 transition disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 font-semibold text-xs hover:bg-blue-100 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin' : ''}`} />
-                      <span>{isSyncingManual ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลเดี๋ยวนี้'}</span>
+                      <Upload className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin' : ''}`} />
+                      <span>⬆️ ส่งข้อมูลเครื่องนี้ขึ้น Cloud</span>
+                    </button>
+                  )}
+
+                  {config.isConfigured && onPullFromCloud && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsSyncingManual(true);
+                        const ok = await onPullFromCloud();
+                        setIsSyncingManual(false);
+                        setCloudMsg(ok ? 'ดึงข้อมูลล่าสุดจาก Cloud เรียบร้อยแล้ว!' : 'ดึงข้อมูลไม่สำเร็จ');
+                        setTimeout(() => setCloudMsg(null), 3000);
+                      }}
+                      disabled={isSyncingManual}
+                      className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-semibold text-xs hover:bg-amber-100 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin' : ''}`} />
+                      <span>⬇️ ดึงข้อมูลจาก Cloud</span>
                     </button>
                   )}
 
@@ -882,7 +894,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       type="button"
                       onClick={handleClearCloud}
-                      className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs transition"
+                      className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs transition cursor-pointer"
                     >
                       ล้างค่าเชื่อมต่อ
                     </button>
