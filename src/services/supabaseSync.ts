@@ -12,10 +12,6 @@ export interface HouseholdCloudData {
 const STORAGE_URL_KEY = 'household_supabase_url';
 const STORAGE_KEY_KEY = 'household_supabase_anon_key';
 
-const DEFAULT_SUPABASE_URL = 'https://ciyjmpqgmjdzhgqezyeu.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeWptcHFnbWpkemhncWV6eWV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0OTE5NzksImV4cCI6MjEwNjA2Nzk3OX0.jrn7HXKjVf4gP9Fez8bUddv1--ajzFPN6EoRDvL_tZQ';
-
 export const sanitizeUrl = (url?: string): string => {
   if (!url) return '';
   let clean = url.trim();
@@ -35,6 +31,27 @@ export const getSupabaseConfig = () => {
 
   let localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) || '' : '';
   let localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) || '' : '';
+  const isDisabled = typeof window !== 'undefined' && localStorage.getItem('household_cloud_disabled') === 'true';
+
+  // If the browser previously stored the failing demo project, purge it to stop 42501 errors
+  if (localUrl && localUrl.includes('ciyjmpqgmjdzhgqezyeu')) {
+    localStorage.removeItem(STORAGE_URL_KEY);
+    localStorage.removeItem(STORAGE_KEY_KEY);
+    localStorage.setItem('household_cloud_disabled', 'true');
+    localUrl = '';
+    localKey = '';
+  }
+
+  if (isDisabled) {
+    return {
+      url: '',
+      anonKey: '',
+      isConfigured: false,
+      isFromEnv: false,
+      isDefault: false,
+      isDisabled: true,
+    };
+  }
 
   // Auto-import credentials from URL query params (for 1-click mobile connect from LINE/chat)
   if (typeof window !== 'undefined') {
@@ -42,11 +59,12 @@ export const getSupabaseConfig = () => {
       const params = new URLSearchParams(window.location.search);
       const paramUrl = params.get('sb_url') || params.get('supabase_url');
       const paramKey = params.get('sb_key') || params.get('supabase_key');
-      if (paramUrl && paramKey) {
+      if (paramUrl && paramKey && !paramUrl.includes('ciyjmpqgmjdzhgqezyeu')) {
         localUrl = sanitizeUrl(paramUrl);
         localKey = paramKey.trim();
         localStorage.setItem(STORAGE_URL_KEY, localUrl);
         localStorage.setItem(STORAGE_KEY_KEY, localKey);
+        localStorage.removeItem('household_cloud_disabled');
         // Clean params from address bar smoothly
         const newUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, document.title, newUrl);
@@ -56,16 +74,16 @@ export const getSupabaseConfig = () => {
     }
   }
 
-  // Priority: 1. User localStorage override -> 2. Environment variables -> 3. Hardcoded Zero-Setup Default
-  const resolvedUrl = sanitizeUrl(localUrl || envUrl || DEFAULT_SUPABASE_URL);
-  const anonKey = (localKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();
+  const resolvedUrl = sanitizeUrl(localUrl || envUrl || '');
+  const anonKey = (localKey || envKey || '').trim();
 
   return {
     url: resolvedUrl,
     anonKey,
     isConfigured: Boolean(resolvedUrl && anonKey),
     isFromEnv: Boolean(envUrl && envKey),
-    isDefault: !localUrl && !envUrl && Boolean(DEFAULT_SUPABASE_URL),
+    isDefault: false,
+    isDisabled: false,
   };
 };
 
@@ -83,12 +101,14 @@ export const getMobileSyncShareLink = (): string => {
 export const saveSupabaseConfig = (url: string, anonKey: string) => {
   localStorage.setItem(STORAGE_URL_KEY, sanitizeUrl(url));
   localStorage.setItem(STORAGE_KEY_KEY, anonKey.trim());
+  localStorage.removeItem('household_cloud_disabled');
   cachedClient = null;
 };
 
 export const clearSupabaseConfig = () => {
   localStorage.removeItem(STORAGE_URL_KEY);
   localStorage.removeItem(STORAGE_KEY_KEY);
+  localStorage.setItem('household_cloud_disabled', 'true');
   if (currentChannel) {
     currentChannel.unsubscribe();
     currentChannel = null;
@@ -135,6 +155,12 @@ export const testSupabaseConnection = async (): Promise<{ success: boolean; mess
         return {
           success: false,
           message: 'พบการเชื่อมต่อกับ Supabase แล้ว แต่ยังไม่ได้กด Run สร้างตาราง household_state (กรุณารันคำสั่ง SQL ใน Supabase SQL Editor)',
+        };
+      }
+      if (error.code === '42501') {
+        return {
+          success: false,
+          message: 'Supabase ติด Row Level Security (42501): กรุณารันคำสั่งใน Supabase SQL Editor: ALTER TABLE household_state DISABLE ROW LEVEL SECURITY;',
         };
       }
       return { success: false, message: 'ข้อผิดพลาดจาก Supabase: ' + error.message };
@@ -272,8 +298,12 @@ CREATE TABLE IF NOT EXISTS household_state (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- อนุญาตให้อ่านเขียนข้อมูลผ่าน Anon Key
+-- อนุญาตให้อ่านและเขียนข้อมูลผ่าน Anon Key
 ALTER TABLE household_state DISABLE ROW LEVEL SECURITY;
+
+-- หรือหากเปิด RLS ให้สร้าง Policy อนุญาตให้อ่านและเขียนได้:
+DROP POLICY IF EXISTS "household_state_all_access" ON household_state;
+CREATE POLICY "household_state_all_access" ON household_state FOR ALL USING (true) WITH CHECK (true);
 
 -- เปิดใช้งาน Realtime การส่งข้อมูลสด
 DO $$

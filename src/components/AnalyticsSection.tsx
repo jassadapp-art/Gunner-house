@@ -119,8 +119,8 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     const catMap = new Map<string, number>();
 
     transactions.forEach(t => {
-      // For categories, only count positive deposits
-      if (t.type === 'withdrawal') return;
+      // For categories, only count positive deposits to the fund (exclude withdrawals & goal allocations)
+      if (t.type === 'withdrawal' || t.type === 'goal_allocation') return;
       const cat = t.category || 'อื่นๆ';
       catMap.set(cat, (catMap.get(cat) || 0) + t.amount);
     });

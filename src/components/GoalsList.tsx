@@ -32,15 +32,18 @@ export const GoalsList: React.FC<GoalsListProps> = ({
   // Calculate average monthly savings across all transactions
   const monthMap = new Map<string, number>();
   transactions.forEach(t => {
+    if (t.type === 'goal_allocation') return;
     const ym = t.date.slice(0, 7);
     const delta = t.type === 'withdrawal' ? -t.amount : t.amount;
     monthMap.set(ym, (monthMap.get(ym) || 0) + delta);
   });
   const totalMonths = Math.max(1, monthMap.size);
-  const totalAllTime = transactions.reduce(
-    (acc, t) => acc + (t.type === 'withdrawal' ? -t.amount : t.amount),
-    0
-  );
+  const totalAllTime = transactions
+    .filter(t => t.type !== 'goal_allocation')
+    .reduce(
+      (acc, t) => acc + (t.type === 'withdrawal' ? -t.amount : t.amount),
+      0
+    );
   const avgMonthlySavings = Math.max(0, totalAllTime / totalMonths);
 
   return (
@@ -78,12 +81,7 @@ export const GoalsList: React.FC<GoalsListProps> = ({
             (acc, t) => acc + (t.type === 'withdrawal' ? -t.amount : t.amount),
             0
           );
-          const effectiveCurrent = Math.max(
-            0,
-            goal.id === 'goal-emergency'
-              ? currentFromTxs
-              : (goal.currentAmount || 0) + currentFromTxs
-          );
+          const effectiveCurrent = Math.max(goal.currentAmount || 0, currentFromTxs);
           
           const progressPercent = Math.min((effectiveCurrent / goal.targetAmount) * 100, 100);
           const remainingAmount = Math.max(0, goal.targetAmount - effectiveCurrent);

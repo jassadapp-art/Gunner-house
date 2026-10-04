@@ -32,6 +32,7 @@ import {
 
 // Components
 import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { MonthlyLedgerView } from './components/MonthlyLedgerView';
 import { SavingsView } from './components/SavingsView';
@@ -92,7 +93,7 @@ export function App() {
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [initialContributor, setInitialContributor] = useState<ContributorId>('person_a');
+  const [initialContributor, setInitialContributor] = useState<ContributorId>('joint');
   const [initialGoalId, setInitialGoalId] = useState<string | undefined>(undefined);
   const [initialFund, setInitialFund] = useState<HouseholdFundType>('operating');
   const [initialType, setInitialType] = useState<TransactionType>('goal_allocation');
@@ -112,19 +113,18 @@ export function App() {
   });
   const isRemoteUpdatingRef = useRef(false);
 
-  // Live Fund Balances
+  // Live Fund Balances (เป้าหมายเงินออมไม่นำมาลดหรือเพิ่มกับยอดกองทุนใดๆ ทั้งสิ้น)
   const currentLongTermBalance = useMemo(() => {
-    const longTermTxs = transactions.filter(t => (t.targetFund ?? 'long_term') === 'long_term');
+    const longTermTxs = transactions.filter(
+      t => (t.targetFund ?? 'long_term') === 'long_term' && t.type !== 'goal_allocation' && !t.goalId && !t.note?.includes('หยอดเงินเข้าเป้าหมาย')
+    );
     const deposits = longTermTxs
       .filter(t => t.type === 'deposit' || (!t.type && t.type !== 'withdrawal'))
       .reduce((acc, t) => acc + t.amount, 0);
     const withdrawals = longTermTxs
       .filter(t => t.type === 'withdrawal')
       .reduce((acc, t) => acc + t.amount, 0);
-    const allocations = longTermTxs
-      .filter(t => t.type === 'goal_allocation')
-      .reduce((acc, t) => acc + t.amount, 0);
-    return deposits - withdrawals - allocations;
+    return deposits - withdrawals;
   }, [transactions]);
 
   const currentOperatingBalance = useMemo(() => {
@@ -138,17 +138,16 @@ export function App() {
       }
       return acc + e.amount;
     }, 0);
-    const operatingTxs = transactions.filter(t => t.targetFund === 'operating');
+    const operatingTxs = transactions.filter(
+      t => t.targetFund === 'operating' && t.type !== 'goal_allocation' && !t.goalId && !t.note?.includes('หยอดเงินเข้าเป้าหมาย')
+    );
     const deposits = operatingTxs
       .filter(t => t.type === 'deposit' || (!t.type && t.type !== 'withdrawal'))
       .reduce((acc, t) => acc + t.amount, 0);
     const withdrawals = operatingTxs
       .filter(t => t.type === 'withdrawal')
       .reduce((acc, t) => acc + t.amount, 0);
-    const allocations = operatingTxs
-      .filter(t => t.type === 'goal_allocation')
-      .reduce((acc, t) => acc + t.amount, 0);
-    return (monthlyHouseholdIncome - totalMonthlyExpense) + (deposits - withdrawals - allocations);
+    return (monthlyHouseholdIncome - totalMonthlyExpense) + (deposits - withdrawals);
   }, [transactions, settings, expenses]);
 
   // Toast Notification
@@ -185,10 +184,35 @@ export function App() {
     currentDataRef.current = { settings, goals, transactions, expenses };
   }, [settings, goals, transactions, expenses]);
 
+  // Synchronize goal currentAmount with actual recorded transactions
+  useEffect(() => {
+    setGoals(prevGoals => {
+      let changed = false;
+      const nextGoals = prevGoals.map(g => {
+        const goalTxs = transactions.filter(t => t.goalId === g.id);
+        if (goalTxs.length === 0) return g;
+
+        const txTotal = goalTxs.reduce(
+          (acc, t) => acc + (t.type === 'withdrawal' ? -t.amount : t.amount),
+          0
+        );
+
+        const correctAmount = Math.max(0, txTotal);
+        if (g.currentAmount !== correctAmount) {
+          changed = true;
+          return { ...g, currentAmount: correctAmount };
+        }
+        return g;
+      });
+      return changed ? nextGoals : prevGoals;
+    });
+  }, [transactions]);
+
   // 1. Cloud Sync on Mount & Realtime Subscription + Mobile Wake-Up Polling
   useEffect(() => {
     const config = getSupabaseConfig();
     if (!config.isConfigured) {
+      setCloudStatus('offline');
       return;
     }
 
@@ -385,20 +409,55 @@ export function App() {
     const fundName = txData.targetFund === 'operating' ? 'กองหมุนเวียน' : 'กองระยะยาว';
     const isWithdrawal = txData.type === 'withdrawal';
 
-    if (txData.id) {
+    const { id: existingId, ...cleanTxData } = txData;
+
+    if (existingId) {
+      // Find old transaction to see if amount or goalId changed
+      const oldTx = transactions.find(t => t.id === existingId);
       // Update existing
       setTransactions(prev =>
-        prev.map(t => (t.id === txData.id ? { ...t, ...txData } : t))
+        prev.map(t => (t.id === existingId ? { ...t, ...cleanTxData, id: existingId } : t))
       );
+      // Update goal's currentAmount if linked to a goal
+      if (oldTx?.goalId || cleanTxData.goalId) {
+        setGoals(prev =>
+          prev.map(g => {
+            let delta = 0;
+            if (oldTx && oldTx.goalId === g.id) {
+              delta -= oldTx.type === 'withdrawal' ? -oldTx.amount : oldTx.amount;
+            }
+            if (cleanTxData.goalId === g.id) {
+              delta += cleanTxData.type === 'withdrawal' ? -cleanTxData.amount : cleanTxData.amount;
+            }
+            if (delta !== 0) {
+              return { ...g, currentAmount: Math.max(0, (g.currentAmount || 0) + delta) };
+            }
+            return g;
+          })
+        );
+      }
       showToast(`อัปเดตรายการ${isWithdrawal ? 'ถอนเงิน' : 'เงินออม'}ของ ${memberName} สำเร็จ`);
     } else {
       // Create new
       const newTx: Transaction = {
-        id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        ...txData,
+        ...cleanTxData,
+        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         createdAt: new Date().toISOString(),
       };
       setTransactions(prev => [newTx, ...prev]);
+
+      // If linked to a goal, increment goal.currentAmount
+      if (cleanTxData.goalId) {
+        const delta = cleanTxData.type === 'withdrawal' ? -cleanTxData.amount : cleanTxData.amount;
+        setGoals(prev =>
+          prev.map(g => {
+            if (g.id === cleanTxData.goalId) {
+              return { ...g, currentAmount: Math.max(0, (g.currentAmount || 0) + delta) };
+            }
+            return g;
+          })
+        );
+      }
 
       // Check if goal was completed by this transaction (if deposit)
       if (!isWithdrawal && txData.goalId) {
@@ -418,7 +477,7 @@ export function App() {
       if (txData.type === 'goal_allocation') {
         const goal = goals.find(g => g.id === txData.goalId);
         triggerCelebration();
-        showToast(`🎯 ดึงเงิน ${formatCurrency(txData.amount)} จาก${fundName} เข้าเป้าหมาย "${goal?.title || 'เป้าหมาย'}" (${memberName}) สำเร็จ!`);
+        showToast(`🎯 หยอดเงิน ${formatCurrency(txData.amount)} เข้าเป้าหมาย "${goal?.title || 'เป้าหมาย'}" (${memberName}) สำเร็จ!`);
       } else if (isWithdrawal) {
         showToast(`💸 ถอนเงิน ${formatCurrency(txData.amount)} จาก${fundName} (${memberName}) สำเร็จ`);
       } else {
@@ -485,9 +544,49 @@ export function App() {
   };
 
   // 3. Delete Transaction
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = (id: string, targetTx?: Transaction) => {
+    if (!id && !targetTx) {
+      showToast('⚠️ ไม่พบรหัสรายการที่ต้องการลบ');
+      return;
+    }
     if (confirm('ต้องการลบรายการเงินออมนี้หรือไม่?')) {
-      setTransactions(prev => prev.filter(t => t.id !== id));
+      const txToDelete = targetTx || transactions.find(t => t.id === id);
+      if (txToDelete && txToDelete.goalId) {
+        const delta = txToDelete.type === 'withdrawal' ? txToDelete.amount : -txToDelete.amount;
+        setGoals(prev =>
+          prev.map(g => {
+            if (g.id === txToDelete.goalId) {
+              return { ...g, currentAmount: Math.max(0, (g.currentAmount || 0) + delta) };
+            }
+            return g;
+          })
+        );
+      }
+
+      setTransactions(prev => {
+        let deleted = false;
+        return prev.filter(t => {
+          if (deleted) return true; // Safeguard: only delete at most 1 item
+          // 1. Primary match by id
+          if (id && t.id && t.id === id) {
+            deleted = true;
+            return false;
+          }
+          // 2. Secondary fallback match by object reference or unique fields
+          if (targetTx && !deleted) {
+            const matches =
+              t.date === targetTx.date &&
+              t.amount === targetTx.amount &&
+              t.type === targetTx.type &&
+              (t.createdAt === targetTx.createdAt || t.note === targetTx.note);
+            if (matches) {
+              deleted = true;
+              return false;
+            }
+          }
+          return true;
+        });
+      });
       showToast('ลบรายการเรียบร้อย');
     }
   };
@@ -573,34 +672,98 @@ export function App() {
   };
 
   // 8.1 Update Expense Bill (for variable recurring expenses e.g. electricity, water)
-  const handleUpdateExpenseBill = (expenseId: string, actualAmount: number, markAsPaid?: boolean) => {
+  const handleUpdateExpenseBill = (
+    expenseId: string,
+    actualAmount: number,
+    markAsPaid?: boolean,
+    targetMonthKey?: string
+  ) => {
     const currentMonthKey = getCurrentYearMonth();
+    const mKey = targetMonthKey || currentMonthKey;
+    const isCurrent = mKey === currentMonthKey;
+
     setExpenses(prev =>
       prev.map(e => {
         if (e.id === expenseId) {
           const updatedBills = {
             ...(e.monthlyBills || {}),
-            [currentMonthKey]: actualAmount,
+            [mKey]: actualAmount,
           };
-          const nextPaidState = markAsPaid !== undefined ? markAsPaid : e.isPaidThisMonth;
+          const nextPaidState =
+            isCurrent && markAsPaid !== undefined ? markAsPaid : e.isPaidThisMonth;
 
           if (markAsPaid) {
             showToast(`บันทึกบิล "${e.title}" ยอด ${formatCurrency(actualAmount)} และชำระเรียบร้อยแล้ว ✅`);
           } else {
-            showToast(`อัปเดตยอดบิลรอบเดือนนี้ของ "${e.title}" เป็น ${formatCurrency(actualAmount)} เรียบร้อย ⚡`);
+            showToast(`อัปเดตยอด "${e.title}" รอบ ${mKey} เป็น ${formatCurrency(actualAmount)} เรียบร้อย ⚡`);
           }
 
           return {
             ...e,
-            currentMonthAmount: actualAmount,
+            currentMonthAmount: isCurrent ? actualAmount : e.currentMonthAmount,
             monthlyBills: updatedBills,
             isPaidThisMonth: nextPaidState,
-            lastPaidMonth: nextPaidState ? currentMonthKey : e.lastPaidMonth,
+            lastPaidMonth: nextPaidState ? mKey : e.lastPaidMonth,
           };
         }
         return e;
       })
     );
+  };
+
+  // 8.1.1 Batch update expenses for a specific month
+  const handleUpdateMonthExpenses = (
+    monthKey: string,
+    billsMap: Record<string, number>,
+    estimatedAmount?: number,
+    adhocAmount?: number
+  ) => {
+    const currentMonthKey = getCurrentYearMonth();
+    const isCurrent = monthKey === currentMonthKey;
+
+    setExpenses(prev =>
+      prev.map(e => {
+        if (billsMap[e.id] !== undefined) {
+          const val = billsMap[e.id];
+          const updatedBills = {
+            ...(e.monthlyBills || {}),
+            [monthKey]: val,
+          };
+          return {
+            ...e,
+            currentMonthAmount: isCurrent ? val : e.currentMonthAmount,
+            monthlyBills: updatedBills,
+          };
+        }
+        return e;
+      })
+    );
+
+    if (estimatedAmount !== undefined || adhocAmount !== undefined) {
+      setSettings(prev => ({
+        ...prev,
+        monthlyExpenseOverrides: {
+          ...(prev.monthlyExpenseOverrides || {}),
+          [monthKey]: {
+            ...(prev.monthlyExpenseOverrides?.[monthKey] || {}),
+            ...(estimatedAmount !== undefined ? { estimated: estimatedAmount } : {}),
+            ...(adhocAmount !== undefined ? { adhoc: adhocAmount } : {}),
+          },
+        },
+      }));
+    }
+
+    showToast(`บันทึกรายจ่ายรอบเดือน ${monthKey} เรียบร้อยแล้ว ✅`);
+  };
+
+  // 8.1.2 Update Household Title and Subtitle directly
+  const handleUpdateHouseholdTitle = (name: string, subtitle?: string) => {
+    setSettings(prev => ({
+      ...prev,
+      householdName: name,
+      ...(subtitle !== undefined ? { householdSubtitle: subtitle } : {}),
+    }));
+    showToast('บันทึกชื่อบ้านเรียบร้อยแล้ว 🏡');
   };
 
   // 8.2 Force reset/clear all expenses for a new monthly cycle
@@ -754,7 +917,7 @@ export function App() {
         onSelectPage={setActivePage}
         onOpenAddModal={() => {
           setEditingTransaction(null);
-          setInitialContributor('person_a');
+          setInitialContributor('joint');
           setInitialGoalId(undefined);
           setInitialFund('operating');
           setInitialCategory(undefined);
@@ -771,102 +934,123 @@ export function App() {
         cloudStatus={cloudStatus}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}
+        onUpdateHouseholdTitle={handleUpdateHouseholdTitle}
       />
 
-      {/* Main Content: 4 Pages */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-7 pb-24 sm:pb-8">
-        
-        {/* 1. หน้า Dashboard สรุปภาพรวม & กราฟแนวโน้ม 5 ตัว */}
-        {activePage === 'dashboard' && (
-          <DashboardView
-            settings={settings}
-            expenses={expenses}
-            transactions={transactions}
-            onNavigateToTab={setActivePage}
-          />
-        )}
+      {/* App Body with Left Sidebar (Request 3: แถบเมนูด้านซ้ายเรียงจากบนลงล่าง) */}
+      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1850px] mx-auto">
+        <Sidebar
+          settings={settings}
+          activePage={activePage}
+          onSelectPage={setActivePage}
+          onOpenAddModal={() => {
+            setEditingTransaction(null);
+            setInitialContributor('joint');
+            setInitialGoalId(undefined);
+            setInitialFund('operating');
+            setInitialCategory(undefined);
+            setIsAddModalOpen(true);
+          }}
+        />
 
-        {/* 2. หน้าลงรายละเอียดรายเดือน เป็นตารางรายรับ-รายจ่าย */}
-        {activePage === 'monthly_ledger' && (
-          <MonthlyLedgerView
-            settings={settings}
-            expenses={expenses}
-            transactions={transactions}
-            onOpenExpenseModal={exp => {
-              setEditingExpense(exp || null);
-              setIsExpenseModalOpen(true);
-            }}
-            onOpenAddTransactionModal={(type, cat) => {
-              setEditingTransaction(null);
-              setInitialType(type || 'deposit');
-              setInitialCategory(cat || 'รายได้พิเศษ');
-              setIsAddModalOpen(true);
-            }}
-            onToggleExpensePaid={handleToggleExpensePaid}
-            onUpdateExpenseBill={handleUpdateExpenseBill}
-            onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
-            onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
-            onDeleteExpense={handleDeleteExpense}
-            onEditTransaction={tx => {
-              setEditingTransaction(tx);
-              setIsAddModalOpen(true);
-            }}
-            onDeleteTransaction={handleDeleteTransaction}
-            onForceResetNewMonth={handleForceResetMonthlyExpenses}
-          />
-        )}
+        {/* Main Content: 4 Pages */}
+        <main className="flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-7 pb-24 sm:pb-8">
+          
+          {/* 1. หน้า Dashboard สรุปภาพรวม & กราฟแนวโน้ม 5 ตัว */}
+          {activePage === 'dashboard' && (
+            <DashboardView
+              settings={settings}
+              expenses={expenses}
+              transactions={transactions}
+              onNavigateToTab={setActivePage}
+            />
+          )}
 
-        {/* 3. หน้าเงินออม & เป้าหมายครอบครัว */}
-        {activePage === 'savings' && (
-          <SavingsView
-            settings={settings}
-            goals={goals}
-            transactions={transactions}
-            onQuickAdd={handleQuickAdd}
-            onQuickWithdraw={handleQuickWithdraw}
-            onOpenCustomAdd={(contributorId, fund, type) => {
-              setEditingTransaction(null);
-              setInitialType(type || 'deposit');
-              setInitialContributor(contributorId || 'person_a');
-              setInitialGoalId(undefined);
-              setInitialFund(fund || 'operating');
-              setInitialCategory(undefined);
-              setIsAddModalOpen(true);
-            }}
-            onUpdatePresets={handleUpdatePresets}
-            onOpenGoalModal={goal => {
-              setEditingGoal(goal || null);
-              setIsGoalModalOpen(true);
-            }}
-            onDeleteGoal={handleDeleteGoal}
-            onOpenDepositForGoal={goalId => {
-              setEditingTransaction(null);
-              setInitialType('goal_allocation');
-              setInitialGoalId(goalId);
-              setIsAddModalOpen(true);
-            }}
-            onEditTransaction={tx => {
-              setEditingTransaction(tx);
-              setIsAddModalOpen(true);
-            }}
-            onDeleteTransaction={handleDeleteTransaction}
-          />
-        )}
+          {/* 2. หน้าลงรายละเอียดรายเดือน เป็นตารางรายรับ-รายจ่าย */}
+          {activePage === 'monthly_ledger' && (
+            <MonthlyLedgerView
+              settings={settings}
+              expenses={expenses}
+              transactions={transactions}
+              onOpenExpenseModal={exp => {
+                setEditingExpense(exp || null);
+                setIsExpenseModalOpen(true);
+              }}
+              onOpenAddTransactionModal={(type, cat) => {
+                setEditingTransaction(null);
+                setInitialType(type || 'deposit');
+                setInitialContributor('joint');
+                setInitialCategory(cat || 'รายได้พิเศษ');
+                setIsAddModalOpen(true);
+              }}
+              onToggleExpensePaid={handleToggleExpensePaid}
+              onUpdateExpenseBill={handleUpdateExpenseBill}
+              onUpdateMonthExpenses={handleUpdateMonthExpenses}
+              onUpdateExpenseEstimatedAmount={handleUpdateExpenseEstimatedAmount}
+              onUpdateMonthlyIncome={handleUpdateMonthlyIncome}
+              onDeleteExpense={handleDeleteExpense}
+              onEditTransaction={tx => {
+                setEditingTransaction(tx);
+                setIsAddModalOpen(true);
+              }}
+              onDeleteTransaction={handleDeleteTransaction}
+              onForceResetNewMonth={handleForceResetMonthlyExpenses}
+            />
+          )}
 
-        {/* 4. หน้าแผนลงทุนและภาษี */}
-        {activePage === 'investment_tax' && (
-          <InvestmentTaxView
-            settings={settings}
-            onUpdateSettings={setSettings}
-            onShowToast={showToast}
-          />
-        )}
+          {/* 3. หน้าเงินออม & เป้าหมายครอบครัว */}
+          {activePage === 'savings' && (
+            <SavingsView
+              settings={settings}
+              goals={goals}
+              transactions={transactions}
+              onQuickAdd={handleQuickAdd}
+              onQuickWithdraw={handleQuickWithdraw}
+              onOpenCustomAdd={(contributorId, fund, type) => {
+                setEditingTransaction(null);
+                setInitialType(type || 'deposit');
+                setInitialContributor(contributorId || 'joint');
+                setInitialGoalId(undefined);
+                setInitialFund(fund || 'operating');
+                setInitialCategory(undefined);
+                setIsAddModalOpen(true);
+              }}
+              onUpdatePresets={handleUpdatePresets}
+              onOpenGoalModal={goal => {
+                setEditingGoal(goal || null);
+                setIsGoalModalOpen(true);
+              }}
+              onDeleteGoal={handleDeleteGoal}
+              onOpenDepositForGoal={goalId => {
+                setEditingTransaction(null);
+                setInitialType('goal_allocation');
+                setInitialContributor('joint');
+                setInitialGoalId(goalId);
+                setIsAddModalOpen(true);
+              }}
+              onEditTransaction={tx => {
+                setEditingTransaction(tx);
+                setIsAddModalOpen(true);
+              }}
+              onDeleteTransaction={handleDeleteTransaction}
+            />
+          )}
 
-      </main>
+          {/* 4. หน้าแผนลงทุนและภาษี */}
+          {activePage === 'investment_tax' && (
+            <InvestmentTaxView
+              settings={settings}
+              onUpdateSettings={setSettings}
+              onShowToast={showToast}
+            />
+          )}
+
+        </main>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-emerald-900/10 dark:border-slate-800/80 bg-white/70 dark:bg-slate-950/40 py-6 text-xs text-slate-600 dark:text-slate-500 text-center transition-colors pb-24 sm:pb-6">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="max-w-[1850px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-slate-700 dark:text-slate-300">Household Savings & Financial Planner</span>
             <span>•</span>

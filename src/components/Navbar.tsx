@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HouseholdSettings, ActivePage } from '../types';
 import {
-  PlusCircle,
   Settings,
   PiggyBank,
   Receipt,
@@ -11,6 +10,9 @@ import {
   Cloud,
   LayoutDashboard,
   TrendingUp,
+  Edit2,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -23,34 +25,53 @@ interface NavbarProps {
   onLockScreen?: () => void;
   cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
   onOpenCloudModal?: () => void;
+  onUpdateHouseholdTitle?: (name: string, subtitle?: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   settings,
   activePage,
   onSelectPage,
-  onOpenAddModal,
   onOpenSettingsModal,
   onToggleTheme,
   onLockScreen,
   cloudStatus = 'offline',
   onOpenCloudModal,
+  onUpdateHouseholdTitle,
 }) => {
-  const memberA = settings.members.person_a;
-  const memberB = settings.members.person_b;
   const isLight = (settings.theme ?? 'light') === 'light';
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(settings.householdName);
+  const [tempSubtitle, setTempSubtitle] = useState(
+    settings.householdSubtitle || 'ระบบบริหารการเงินครอบครัว'
+  );
+
+  useEffect(() => {
+    setTempTitle(settings.householdName);
+    setTempSubtitle(
+      settings.householdSubtitle || 'ระบบบริหารการเงินครอบครัว'
+    );
+  }, [settings.householdName, settings.householdSubtitle]);
+
+  const handleSaveTitle = () => {
+    if (onUpdateHouseholdTitle) {
+      onUpdateHouseholdTitle(tempTitle.trim() || settings.householdName, tempSubtitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
 
   const navItems: { id: ActivePage; label: string; number: string; icon: React.ReactNode }[] = [
     {
       id: 'dashboard',
       number: '1',
-      label: 'แดชบอร์ดสรุป',
+      label: 'แดชบอร์ด',
       icon: <LayoutDashboard className="w-4 h-4" />,
     },
     {
       id: 'monthly_ledger',
       number: '2',
-      label: 'รายละเอียดรายเดือน',
+      label: 'รายรับรายจ่าย',
       icon: <Receipt className="w-4 h-4" />,
     },
     {
@@ -62,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'investment_tax',
       number: '4',
-      label: 'แผนลงทุนและภาษี',
+      label: 'ลงทุน & ภาษี',
       icon: <TrendingUp className="w-4 h-4" />,
     },
   ];
@@ -71,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0B0F19]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 transition-colors shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1850px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             
             {/* Logo & Household Title */}
@@ -80,33 +101,70 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <PiggyBank className="w-6 h-6 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-xs">
-                    {settings.householdName}
-                  </h1>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                  ระบบบริหารการเงินครัวเรือน 4 หน้า (Dashboard, บัญชีรายเดือน, เงินออม, ลงทุน&ภาษี)
-                </p>
+                {isEditingTitle ? (
+                  <div className="flex flex-col gap-1.5 p-2 bg-white dark:bg-slate-900 border border-emerald-500 rounded-2xl shadow-lg">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={tempTitle}
+                        onChange={e => setTempTitle(e.target.value)}
+                        placeholder="ชื่อบ้าน..."
+                        className="px-2 py-0.5 text-xs sm:text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 min-w-[180px]"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveTitle();
+                          if (e.key === 'Escape') setIsEditingTitle(false);
+                        }}
+                      />
+                      <button
+                        onClick={handleSaveTitle}
+                        className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer transition shadow-2xs"
+                        title="บันทึก"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setIsEditingTitle(false)}
+                        className="p-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer transition"
+                        title="ยกเลิก"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={tempSubtitle}
+                      onChange={e => setTempSubtitle(e.target.value)}
+                      placeholder="คำอธิบาย..."
+                      className="px-2 py-0.5 text-[10px] rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleSaveTitle();
+                        if (e.key === 'Escape') setIsEditingTitle(false);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setIsEditingTitle(true)}
+                    className="group cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/60 rounded-xl p-1 -m-1 transition"
+                    title="คลิกเพื่อแก้ไขชื่อบ้านหรือคำอธิบาย"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-xs">
+                        {settings.householdName}
+                      </h1>
+                      <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition shrink-0" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+                      {settings.householdSubtitle || 'ระบบบริหารการเงินครอบครัว'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Actions & Utilities */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              
-              {/* Member Pills */}
-              <div className="hidden lg:flex items-center bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-1 gap-1.5">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20 text-xs text-slate-800 dark:text-slate-200 shadow-2xs">
-                  <span className="text-sm">{memberA.avatar}</span>
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">{memberA.nickname}</span>
-                </div>
-                <span className="text-xs font-bold text-slate-400">&</span>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-indigo-500/10 border border-indigo-300 dark:border-indigo-500/20 text-xs text-slate-800 dark:text-slate-200 shadow-2xs">
-                  <span className="text-sm">{memberB.avatar}</span>
-                  <span className="font-semibold text-indigo-700 dark:text-indigo-400">{memberB.nickname}</span>
-                </div>
-              </div>
-
               {/* Theme Toggle Button */}
               <button
                 onClick={onToggleTheme}
@@ -190,56 +248,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Primary Action Button: Add Transaction */}
-              <button
-                onClick={onOpenAddModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition active:scale-95"
-              >
-                <PlusCircle className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">บันทึกเงินออม</span>
-                <span className="sm:hidden">หยอดเงิน</span>
-              </button>
 
             </div>
 
           </div>
         </div>
-
-        {/* 4 Main Page Navigation Tabs Bar (Desktop & Tablet) */}
-        <div className="bg-slate-50/95 dark:bg-[#0E1422]/95 border-t border-slate-200/80 dark:border-slate-800/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-3 py-2 overflow-x-auto no-scrollbar">
-              {navItems.map(item => {
-                const isActive = activePage === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectPage(item.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                      isActive
-                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30 scale-[1.02]'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-xs font-black ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
-                    }`}>
-                      {item.number}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
       </header>
 
       {/* Mobile Fixed Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-white/95 dark:bg-[#0B0F19]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 shadow-2xl flex items-center justify-around">
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 dark:bg-[#0B0F19]/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 shadow-2xl flex items-center justify-around">
         {navItems.map(item => {
           const isActive = activePage === item.id;
           return (

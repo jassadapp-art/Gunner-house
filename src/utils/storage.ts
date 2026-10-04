@@ -1,39 +1,45 @@
 import type { HouseholdSettings, MonthlyExpense, SavingsGoal, Transaction } from '../types';
 import { initialExpenses, initialGoals, initialSettings, initialTransactions } from '../data/mockData';
 
-const SETTINGS_KEY = 'household_savings_settings_v10';
-const GOALS_KEY = 'household_savings_goals_v10';
-const TRANSACTIONS_KEY = 'household_savings_transactions_v10';
-const EXPENSES_KEY = 'household_savings_expenses_v10';
+const SETTINGS_KEY = 'household_savings_settings_v12';
+const GOALS_KEY = 'household_savings_goals_v12';
+const TRANSACTIONS_KEY = 'household_savings_transactions_v12';
+const EXPENSES_KEY = 'household_savings_expenses_v12';
 
 /**
  * Safe fallback reader:
- * First checks v10; if not found, checks older versions (v9, v8, etc.)
- * For transactions and settings: replaces with verified dataset matching user images.
+ * First checks v12; if not found or empty, checks older versions (v11, v10, etc.)
+ * For transactions: guarantees that an empty/corrupted array is never loaded, restoring initial verified transactions.
  */
 const getWithFallback = (baseKey: string): string | null => {
   try {
-    const current = localStorage.getItem(`${baseKey}_v10`);
-    if (current) return current;
+    const current = localStorage.getItem(`${baseKey}_v12`);
+    if (current && current !== '[]') return current;
 
-    // For transactions: replace old savings data with verified Image 4 transactions
+    // For transactions: replace old or cleared savings data with verified dataset
     if (baseKey === 'household_savings_transactions') {
-      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialTransactions));
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialTransactions));
       return JSON.stringify(initialTransactions);
+    }
+
+    // For goals: refresh emergency goal to 157,359.89
+    if (baseKey === 'household_savings_goals') {
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialGoals));
+      return JSON.stringify(initialGoals);
     }
 
     // For settings: load verified monthlyIncomes matching Image 1 & 2
     if (baseKey === 'household_savings_settings') {
-      localStorage.setItem(`${baseKey}_v10`, JSON.stringify(initialSettings));
+      localStorage.setItem(`${baseKey}_v12`, JSON.stringify(initialSettings));
       return JSON.stringify(initialSettings);
     }
 
     // Check previous versions in descending order
-    for (const ver of ['v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
+    for (const ver of ['v11', 'v10', 'v9', 'v8', 'v7', 'v6', 'v5', 'v4', 'v3', 'v2', 'v1']) {
       const prev = localStorage.getItem(`${baseKey}_${ver}`);
-      if (prev) {
-        // Automatically migrate forward to v10 so user data is preserved
-        localStorage.setItem(`${baseKey}_v10`, prev);
+      if (prev && prev !== '[]') {
+        // Automatically migrate forward to v12 so user data is preserved
+        localStorage.setItem(`${baseKey}_v12`, prev);
         return prev;
       }
     }
@@ -84,7 +90,7 @@ export const loadStoredGoals = (): SavingsGoal[] => {
       const parsed: SavingsGoal[] = JSON.parse(saved);
       return parsed.map(g => {
         if (g.id === 'goal-emergency') {
-          return { ...g, currentAmount: 297463.40, targetAmount: 200000 };
+          return { ...g, currentAmount: 157359.89, targetAmount: 200000 };
         }
         return g;
       });
@@ -106,7 +112,31 @@ export const saveStoredGoals = (goals: SavingsGoal[]): void => {
 export const loadStoredTransactions = (): Transaction[] => {
   try {
     const saved = getWithFallback('household_savings_transactions');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: Transaction[] = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Guarantee every transaction has a unique, non-empty string id
+        const seenIds = new Set<string>();
+        return parsed.map((t, idx) => {
+          let id = t.id ? String(t.id).trim() : '';
+          if (!id || seenIds.has(id)) {
+            id = `tx-${t.date || 'item'}-${idx + 1}-${Math.random().toString(36).substring(2, 6)}`;
+          }
+          seenIds.add(id);
+          if (id.startsWith('tx-passbook-')) {
+            const { goalId, ...rest } = t;
+            return {
+              ...rest,
+              id,
+            };
+          }
+          return {
+            ...t,
+            id,
+          };
+        });
+      }
+    }
   } catch (err) {
     console.error('Failed to load transactions from storage', err);
   }
@@ -124,7 +154,46 @@ export const saveStoredTransactions = (transactions: Transaction[]): void => {
 export const loadStoredExpenses = (): MonthlyExpense[] => {
   try {
     const saved = getWithFallback('household_savings_expenses');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: MonthlyExpense[] = JSON.parse(saved);
+      const hasFuel = parsed.some(e => e.id === 'exp-fuel' || e.title.includes('น้ำมัน'));
+      if (!hasFuel) {
+        const fuelItem = initialExpenses.find(e => e.id === 'exp-fuel');
+        if (fuelItem) {
+          parsed.push(fuelItem);
+          saveStoredExpenses(parsed);
+        }
+      } else {
+        // Ensure mother's salary (10,000) is never accidentally stored inside fuel bills
+        let hasFixedFuel = false;
+        parsed.forEach(e => {
+          if (e.id === 'exp-fuel' || (e.title.includes('น้ำมัน') && !e.title.includes('แม่'))) {
+            if (e.monthlyBills) {
+              if (e.monthlyBills['2026-10'] === 13000) {
+                e.monthlyBills['2026-10'] = 3000;
+                hasFixedFuel = true;
+              }
+              if (e.monthlyBills['2026-09'] === 10000) {
+                e.monthlyBills['2026-09'] = 2800;
+                hasFixedFuel = true;
+              }
+            }
+            if (e.currentMonthAmount === 13000) {
+              e.currentMonthAmount = 3000;
+              hasFixedFuel = true;
+            }
+            if (e.amount === 13000) {
+              e.amount = 3000;
+              hasFixedFuel = true;
+            }
+          }
+        });
+        if (hasFixedFuel) {
+          saveStoredExpenses(parsed);
+        }
+      }
+      return parsed;
+    }
   } catch (err) {
     console.error('Failed to load expenses from storage', err);
   }

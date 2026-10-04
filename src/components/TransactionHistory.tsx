@@ -22,7 +22,7 @@ interface TransactionHistoryProps {
   goals: SavingsGoal[];
   settings: HouseholdSettings;
   onEditTransaction: (tx: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onDeleteTransaction: (id: string, tx?: Transaction) => void;
 }
 
 export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
@@ -353,7 +353,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                       ) : isGoalAllocation ? (
                         <div className="flex items-center gap-1.5 text-teal-800 dark:text-teal-300 font-semibold">
                           <Target className="w-3.5 h-3.5 flex-shrink-0 text-teal-600 dark:text-teal-400" />
-                          <span className="truncate">{tx.note || `ดึงเงินเข้าเป้าหมาย: ${goal?.title || 'เป้าหมาย'}`}</span>
+                          <span className="truncate">{tx.note || `หยอดเงินเข้าเป้าหมาย: ${goal?.title || 'เป้าหมาย'}`}</span>
                         </div>
                       ) : (
                         <span className="text-slate-800 dark:text-slate-200">
@@ -406,9 +406,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                             ? 'text-emerald-700 dark:text-emerald-400'
                             : 'text-indigo-700 dark:text-indigo-400'
                         }`}
-                        title={isGoalAllocation ? `ดึงเงินออกจาก${isLongTerm ? 'กองระยะยาว' : 'กองหมุนเวียน'} เข้าเป้าหมาย` : undefined}
+                        title={isGoalAllocation ? `หยอดเงินสะสมเข้าเป้าหมาย` : undefined}
                       >
-                        {isWithdrawal ? '-' : isGoalAllocation ? '-' : '+'}{formatCurrency(tx.amount)}
+                        {isWithdrawal ? '-' : '+'}{formatCurrency(tx.amount)}
                       </span>
                     </td>
 
@@ -423,7 +423,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => onDeleteTransaction(tx.id)}
+                          onClick={() => onDeleteTransaction(tx.id, tx)}
                           title="ลบรายการ"
                           className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition"
                         >

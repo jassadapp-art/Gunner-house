@@ -109,6 +109,7 @@ export type ActivePage = 'dashboard' | 'monthly_ledger' | 'savings' | 'investmen
 
 export interface HouseholdSettings {
   householdName: string;
+  householdSubtitle?: string;
   currency: string;
   theme?: 'light' | 'dark';
   password?: string;              // PIN or password (default: '1234')
@@ -124,6 +125,7 @@ export interface HouseholdSettings {
   investments?: InvestmentItem[];
   taxProfiles?: Record<'person_a' | 'person_b', TaxProfile>;
   monthlyIncomes?: Record<string, { person_a?: number; person_b?: number; other?: number; balance?: number; note?: string }>;
+  monthlyExpenseOverrides?: Record<string, { adhoc?: number; estimated?: number }>;
 }
 
 export interface MonthlySummary {

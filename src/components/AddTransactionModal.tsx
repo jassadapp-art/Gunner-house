@@ -12,14 +12,10 @@ import {
   X,
   Check,
   Calendar,
-  Layers,
   FileText,
-  Wallet,
-  Receipt,
   ArrowDownRight,
   ArrowUpRight,
   Target,
-  ArrowRight,
   AlertCircle,
 } from 'lucide-react';
 
@@ -123,15 +119,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
   };
 
-  const handleQuickAddAmount = (addVal: number) => {
-    const current = parseFloat(amount) || 0;
-    setAmount((current + addVal).toString());
-  };
-
   const selectedGoalObj = goals.find(g => g.id === goalId);
   const currentAvailableInSelectedFund = targetFund === 'long_term' ? longTermBalance : operatingBalance;
   const numAmount = parseFloat(amount) || 0;
-  const isOverFundBalance = type === 'goal_allocation' && numAmount > currentAvailableInSelectedFund;
+  const isOverFundBalance = type === 'withdrawal' && numAmount > currentAvailableInSelectedFund;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,14 +136,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       return;
     }
 
-    const fundName = targetFund === 'operating' ? 'กองหมุนเวียน' : 'กองระยะยาว';
     let finalNote = note.trim();
     if (type === 'goal_allocation' && !finalNote && selectedGoalObj) {
-      finalNote = `ดึงเงินจาก${fundName} เข้าเป้าหมาย: ${selectedGoalObj.title}`;
+      finalNote = `หยอดเงินเข้าเป้าหมาย: ${selectedGoalObj.title}`;
     }
 
     onSave({
-      id: editingTransaction?.id,
+      ...(editingTransaction?.id ? { id: editingTransaction.id } : {}),
       contributorId,
       date,
       amount: numAmount,
@@ -199,7 +189,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {type === 'goal_allocation'
-              ? 'ดึงเงินออกจากกองทุนที่เลือก (กองระยะยาว หรือ กองหมุนเวียน) เพื่อนำไปสะสมในเป้าหมาย'
+              ? 'บันทึกเงินออมหยอดเข้าเป้าหมายที่ต้องการ'
               : type === 'deposit'
               ? 'ฝากเงินเติมเข้ากองทุนของครอบครัว'
               : 'เบิกถอนเงินออกจากกองทุนของครอบครัวเพื่อใช้จ่าย'}
@@ -283,105 +273,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           )}
 
-          {/* 3. Source/Target Fund Selector */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-              {type === 'goal_allocation'
-                ? 'เลือกกองทุนต้นทางที่ต้องการดึงเงินออก (Source Fund) *'
-                : type === 'deposit'
-                ? 'เลือกกองทุนที่ต้องการฝากเข้า *'
-                : 'เลือกกองทุนที่ต้องการถอนออก *'}
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Fund 1: Operating (Default) */}
-              <button
-                type="button"
-                onClick={() => setTargetFund('operating')}
-                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
-                  targetFund === 'operating'
-                    ? 'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-500 ring-2 ring-indigo-500/30 shadow-md'
-                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Receipt className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    <span>💳 กองหมุนเวียน</span>
-                    {targetFund === 'operating' && (
-                      <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 ml-auto" />
-                    )}
-                  </div>
-                  <div className="text-[11px] text-indigo-700 dark:text-indigo-400 font-medium">กองทุนใช้จ่ายรายเดือน (หลัก)</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    คงเหลือ: <strong className="text-indigo-700 dark:text-indigo-300">{formatCurrency(operatingBalance)}</strong>
-                  </div>
-                </div>
-              </button>
 
-              {/* Fund 2: Long-term */}
-              <button
-                type="button"
-                onClick={() => setTargetFund('long_term')}
-                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
-                  targetFund === 'long_term'
-                    ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md'
-                    : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    <span>🏛️ กองระยะยาว</span>
-                    {targetFund === 'long_term' && (
-                      <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ml-auto" />
-                    )}
-                  </div>
-                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">กองกลางสะสมทั้งหมด</div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    คงเหลือ: <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(longTermBalance)}</strong>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
 
-          {/* Transfer Visual Preview (when in goal_allocation mode) */}
-          {type === 'goal_allocation' && selectedGoalObj && (
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-slate-100 via-teal-50/50 to-slate-100 dark:from-slate-950 dark:via-teal-950/30 dark:to-slate-950 border border-teal-200/80 dark:border-teal-500/30 flex items-center justify-between gap-2 text-xs">
-              <div className="text-left min-w-0">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">ดึงออกจาก</span>
-                <span className="font-bold text-slate-900 dark:text-white truncate">
-                  {targetFund === 'long_term' ? '🏛️ กองระยะยาว' : '💳 กองหมุนเวียน'}
-                </span>
-                {numAmount > 0 && (
-                  <span className="text-[10px] text-rose-600 dark:text-rose-400 block font-bold">
-                    -{formatCurrency(numAmount)}
-                  </span>
-                )}
-              </div>
 
-              <div className="flex flex-col items-center flex-shrink-0 px-2">
-                <ArrowRight className="w-4 h-4 text-teal-600 dark:text-teal-400 animate-pulse" />
-                <span className="text-[9px] text-teal-600 dark:text-teal-400 font-extrabold uppercase mt-0.5">โอนเข้า</span>
-              </div>
-
-              <div className="text-right min-w-0">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">สะสมเข้า</span>
-                <span className="font-bold text-teal-700 dark:text-teal-300 truncate block">
-                  {selectedGoalObj.icon} {selectedGoalObj.title}
-                </span>
-                {numAmount > 0 && (
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-bold">
-                    +{formatCurrency(numAmount)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* 4. Contributor Selector */}
           <div>
@@ -491,43 +385,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 }`}
               />
             </div>
-
-            {/* Quick Chips */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {[500, 1000, 3000, 5000, 10000].map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => handleQuickAddAmount(val)}
-                  className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 transition active:scale-95"
-                >
-                  +{formatCurrency(val, false)}
-                </button>
-              ))}
-            </div>
           </div>
-
-          {/* 6. Conditional: Deposit Goal (Optional) vs Withdrawal Reason */}
-          {type === 'deposit' && (
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-teal-600 dark:text-cyan-400" />
-                จัดสรรไปยังเป้าหมาย (ตัวเลือก)
-              </label>
-              <select
-                value={goalId}
-                onChange={e => handleGoalChange(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="">-- กองกลางทั่วไป (ไม่เจาะจง) --</option>
-                {goals.map(g => (
-                  <option key={g.id} value={g.id}>
-                    {g.icon} {g.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {type === 'withdrawal' && (
             <div className="space-y-2 p-3 rounded-2xl bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30">
@@ -613,7 +471,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               {editingTransaction
                 ? 'บันทึกการแก้ไข'
                 : type === 'goal_allocation'
-                ? `🎯 ยืนยันดึงเงินเข้าเป้าหมาย (${targetFund === 'long_term' ? 'จากกองระยะยาว' : 'จากกองหมุนเวียน'})`
+                ? '🎯 ยืนยันหยอดเงินเข้าเป้าหมาย'
                 : type === 'deposit'
                 ? `🪙 ยืนยันการฝากเงิน (${targetFund === 'long_term' ? 'กองระยะยาว' : 'กองหมุนเวียน'})`
                 : `💸 ยืนยันการถอนเงิน (${targetFund === 'long_term' ? 'กองระยะยาว' : 'กองหมุนเวียน'})`}
