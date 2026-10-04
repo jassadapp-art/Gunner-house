@@ -15,11 +15,27 @@ const STORAGE_KEY_KEY = 'household_supabase_anon_key';
 export const sanitizeUrl = (url?: string): string => {
   if (!url) return '';
   let clean = url.trim();
-  // Strip trailing /rest/v1 or /rest/v1/
-  clean = clean.replace(/\/rest\/v1\/?$/i, '');
-  // Strip trailing slashes
-  clean = clean.replace(/\/+$/, '');
-  return clean;
+  
+  // Extract project ref if user pasted dashboard URL like https://supabase.com/dashboard/project/ciyjmpqgmjdzhgqezyeu
+  const dashMatch = clean.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+  if (dashMatch) {
+    return `https://${dashMatch[1]}.supabase.co`;
+  }
+
+  // Ensure scheme
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    clean = 'https://' + clean;
+  }
+  
+  // Strip paths like /rest/v1, /auth/v1, etc.
+  try {
+    const parsed = new URL(clean);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    clean = clean.replace(/\/rest\/v1\/?$/i, '');
+    clean = clean.replace(/\/+$/, '');
+    return clean;
+  }
 };
 
 let cachedClient: SupabaseClient | null = null;
@@ -32,15 +48,6 @@ export const getSupabaseConfig = () => {
   let localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) || '' : '';
   let localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) || '' : '';
   const isDisabled = typeof window !== 'undefined' && localStorage.getItem('household_cloud_disabled') === 'true';
-
-  // If the browser previously stored the failing demo project, purge it to stop 42501 errors
-  if (localUrl && localUrl.includes('ciyjmpqgmjdzhgqezyeu')) {
-    localStorage.removeItem(STORAGE_URL_KEY);
-    localStorage.removeItem(STORAGE_KEY_KEY);
-    localStorage.setItem('household_cloud_disabled', 'true');
-    localUrl = '';
-    localKey = '';
-  }
 
   if (isDisabled) {
     return {
@@ -59,7 +66,7 @@ export const getSupabaseConfig = () => {
       const params = new URLSearchParams(window.location.search);
       const paramUrl = params.get('sb_url') || params.get('supabase_url');
       const paramKey = params.get('sb_key') || params.get('supabase_key');
-      if (paramUrl && paramKey && !paramUrl.includes('ciyjmpqgmjdzhgqezyeu')) {
+      if (paramUrl && paramKey) {
         localUrl = sanitizeUrl(paramUrl);
         localKey = paramKey.trim();
         localStorage.setItem(STORAGE_URL_KEY, localUrl);
@@ -137,8 +144,25 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   return cachedClient;
 };
 
-export const testSupabaseConnection = async (): Promise<{ success: boolean; message: string }> => {
-  const client = getSupabaseClient();
+export const testSupabaseConnection = async (
+  overrideUrl?: string,
+  overrideKey?: string
+): Promise<{ success: boolean; message: string }> => {
+  let client: SupabaseClient | null = null;
+
+  if (overrideUrl && overrideKey) {
+    const cleanUrl = sanitizeUrl(overrideUrl);
+    const cleanKey = overrideKey.trim();
+    if (!cleanUrl || !cleanKey) {
+      return { success: false, message: 'กรุณาระบุทั้ง Supabase URL และ Anon Key ให้ครบถ้วน' };
+    }
+    client = createClient(cleanUrl, cleanKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  } else {
+    client = getSupabaseClient();
+  }
+
   if (!client) {
     return { success: false, message: 'ยังไม่ได้ระบุ Supabase URL หรือ Anon Key' };
   }
@@ -154,7 +178,7 @@ export const testSupabaseConnection = async (): Promise<{ success: boolean; mess
       if (error.code === '42P01' || error.code === 'PGRST205') {
         return {
           success: false,
-          message: 'พบการเชื่อมต่อกับ Supabase แล้ว แต่ยังไม่ได้กด Run สร้างตาราง household_state (กรุณารันคำสั่ง SQL ใน Supabase SQL Editor)',
+          message: 'เชื่อมต่อ Supabase ได้แล้ว! แต่ยังไม่ได้รันคำสั่ง SQL สร้างตาราง household_state (กรุณาคัดลอก SQL ด้านล่างไปรันใน Supabase SQL Editor)',
         };
       }
       if (error.code === '42501') {
@@ -163,12 +187,12 @@ export const testSupabaseConnection = async (): Promise<{ success: boolean; mess
           message: 'Supabase ติด Row Level Security (42501): กรุณารันคำสั่งใน Supabase SQL Editor: ALTER TABLE household_state DISABLE ROW LEVEL SECURITY;',
         };
       }
-      return { success: false, message: 'ข้อผิดพลาดจาก Supabase: ' + error.message };
+      return { success: false, message: 'ข้อผิดพลาดจาก Supabase (' + (error.code || 'ERR') + '): ' + error.message };
     }
 
     return {
       success: true,
-      message: data ? 'เชื่อมต่อฐานข้อมูลและพบข้อมูลเรียบร้อยแล้ว' : 'เชื่อมต่อฐานข้อมูลสำเร็จ (พร้อมเริ่มต้นบันทึกข้อมูล)',
+      message: data ? 'เชื่อมต่อฐานข้อมูลและพบข้อมูลล่าสุดเรียบร้อยแล้ว' : 'เชื่อมต่อฐานข้อมูลสำเร็จ (พร้อมเริ่มต้นบันทึกข้อมูลและซิงค์ทันที)',
     };
   } catch (err: any) {
     return { success: false, message: err?.message || 'ไม่สามารถเชื่อมต่อได้ ตรวจสอบ URL อีกครั้ง' };

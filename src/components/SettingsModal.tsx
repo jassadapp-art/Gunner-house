@@ -154,7 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     saveSupabaseConfig(supabaseUrl, supabaseAnonKey);
     setTestingConnection(true);
     setTestResult(null);
-    const result = await testSupabaseConnection();
+    const result = await testSupabaseConnection(supabaseUrl, supabaseAnonKey);
     setTestingConnection(false);
     setTestResult(result);
     if (result.success) {
@@ -165,9 +165,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTestCloudConnection = async () => {
+    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      setTestResult({ success: false, message: 'กรุณากรอกทั้ง Project URL และ Anon Key' });
+      return;
+    }
     setTestingConnection(true);
     setTestResult(null);
-    const result = await testSupabaseConnection();
+    const result = await testSupabaseConnection(supabaseUrl, supabaseAnonKey);
     setTestingConnection(false);
     setTestResult(result);
   };
