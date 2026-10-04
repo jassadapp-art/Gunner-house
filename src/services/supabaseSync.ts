@@ -47,18 +47,6 @@ export const getSupabaseConfig = () => {
 
   let localUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) || '' : '';
   let localKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) || '' : '';
-  const isDisabled = typeof window !== 'undefined' && localStorage.getItem('household_cloud_disabled') === 'true';
-
-  if (isDisabled) {
-    return {
-      url: '',
-      anonKey: '',
-      isConfigured: false,
-      isFromEnv: false,
-      isDefault: false,
-      isDisabled: true,
-    };
-  }
 
   // Auto-import credentials from URL query params (for 1-click mobile connect from LINE/chat)
   if (typeof window !== 'undefined') {
@@ -81,6 +69,19 @@ export const getSupabaseConfig = () => {
     }
   }
 
+  const isDisabled = typeof window !== 'undefined' && localStorage.getItem('household_cloud_disabled') === 'true';
+
+  if (isDisabled && !localUrl) {
+    return {
+      url: '',
+      anonKey: '',
+      isConfigured: false,
+      isFromEnv: false,
+      isDefault: false,
+      isDisabled: true,
+    };
+  }
+
   const resolvedUrl = sanitizeUrl(localUrl || envUrl || '');
   const anonKey = (localKey || envKey || '').trim();
 
@@ -95,12 +96,14 @@ export const getSupabaseConfig = () => {
 };
 
 /**
- * Generates an instant 1-click setup link to open on Mobile
+ * Generates an instant 1-click setup link to open on Mobile / Other Devices
  */
-export const getMobileSyncShareLink = (): string => {
+export const getMobileSyncShareLink = (customUrl?: string, customKey?: string): string => {
   if (typeof window === 'undefined') return '';
-  const { url, anonKey, isConfigured } = getSupabaseConfig();
-  if (!isConfigured) return '';
+  const config = getSupabaseConfig();
+  const url = customUrl ? sanitizeUrl(customUrl) : config.url;
+  const anonKey = customKey ? customKey.trim() : config.anonKey;
+  if (!url || !anonKey) return '';
   const base = window.location.origin + window.location.pathname;
   return `${base}?sb_url=${encodeURIComponent(url)}&sb_key=${encodeURIComponent(anonKey)}`;
 };

@@ -30,6 +30,7 @@ import {
   saveSupabaseConfig,
   clearSupabaseConfig,
   testSupabaseConnection,
+  getMobileSyncShareLink,
   SUPABASE_SQL_SETUP,
 } from '../services/supabaseSync';
 
@@ -750,25 +751,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
                   <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <div className="font-bold text-xs">
-                    📲 ระบบ Realtime อัตโนมัติทุกอุปกรณ์ (ไม่ต้องตั้งค่าในมือถือ)
+                    📲 เชื่อมต่อเครื่องอื่น / มือถือแบบ 1-Click (ไม่ต้องกรอกคีย์เอง)
                   </div>
                 </div>
                 <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300 leading-relaxed">
-                  ระบบฝังการเชื่อมต่อ Supabase ไว้ในตัวเว็บเรียบร้อยแล้ว ทุกคนที่เปิดเว็บลิงก์ปกติจากคอมพิวเตอร์หรือโทรศัพท์มือถือ จะเห็นข้อมูลและอัปเดตตรงกันทันที 100%
+                  กดปุ่มด้านล่างเพื่อคัดลอกลิงก์ซิงค์ แล้วส่งไปเปิดในโทรศัพท์มือถือหรือคอมเครื่องอื่น ลิงก์จะบันทึกการเชื่อมต่อและดึงข้อมูลล่าสุด (รวมถึงรหัสผ่านและเงินออม) ให้อัตโนมัติทันที
                 </p>
                 <button
                   type="button"
                   onClick={() => {
                     if (typeof window !== 'undefined') {
-                      navigator.clipboard.writeText(window.location.origin + window.location.pathname);
+                      const shareLink = getMobileSyncShareLink(supabaseUrl, supabaseAnonKey) || (window.location.origin + window.location.pathname);
+                      navigator.clipboard.writeText(shareLink);
                       setCopiedMobileLink(true);
-                      setTimeout(() => setCopiedMobileLink(false), 3000);
+                      setTimeout(() => setCopiedMobileLink(false), 3500);
                     }
                   }}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
                 >
-                  {copiedMobileLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedMobileLink ? 'คัดลอกลิงก์เว็บแล้ว! ส่งเข้า LINE ได้เลย' : 'คัดลอกลิงก์เว็บไซต์ส่งเข้า LINE'}</span>
+                  {copiedMobileLink ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedMobileLink ? '✅ คัดลอกลิงก์ซิงค์แล้ว! ส่งเข้า LINE เปิดได้ทันที' : '🔗 คัดลอกลิงก์ซิงค์สำหรับเปิดในมือถือ / เครื่องอื่น (1-Click Sync)'}</span>
                 </button>
               </div>
 
