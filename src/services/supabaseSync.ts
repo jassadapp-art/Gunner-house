@@ -140,6 +140,13 @@ export const getSupabaseClient = (): SupabaseClient | null => {
         persistSession: false,
         autoRefreshToken: false,
       },
+      global: {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      },
       realtime: {
         params: {
           eventsPerSecond: 10,

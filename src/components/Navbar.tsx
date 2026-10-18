@@ -25,6 +25,7 @@ interface NavbarProps {
   onLockScreen?: () => void;
   cloudStatus?: 'connected' | 'syncing' | 'offline' | 'error';
   onOpenCloudModal?: () => void;
+  onTriggerQuickSync?: () => void;
   onUpdateHouseholdTitle?: (name: string, subtitle?: string) => void;
 }
 
@@ -37,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLockScreen,
   cloudStatus = 'offline',
   onOpenCloudModal,
+  onTriggerQuickSync,
   onUpdateHouseholdTitle,
 }) => {
   const isLight = (settings.theme ?? 'light') === 'light';
@@ -186,17 +188,25 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Cloud Sync Status Badge Button */}
               <button
-                onClick={onOpenCloudModal || onOpenSettingsModal}
+                onClick={() => {
+                  if (cloudStatus === 'error' && onOpenCloudModal) {
+                    onOpenCloudModal();
+                  } else if (onTriggerQuickSync) {
+                    onTriggerQuickSync();
+                  } else if (onOpenCloudModal) {
+                    onOpenCloudModal();
+                  }
+                }}
                 title={
                   cloudStatus === 'connected'
-                    ? '🟢 Cloud ซิงค์สดเชื่อมต่อแล้ว (คลิกเพื่อดูการตั้งค่า)'
+                    ? '🟢 Cloud ซิงค์สด (แตะเพื่อดึงข้อมูลล่าสุดเดี๋ยวนี้)'
                     : cloudStatus === 'syncing'
                     ? '🟡 กำลังรับส่งข้อมูลกับ Cloud...'
                     : cloudStatus === 'error'
-                    ? '🔴 การเชื่อมต่อ Cloud ขัดข้อง (คลิกเพื่อตรวจสอบ)'
+                    ? '🔴 การเชื่อมต่อ Cloud ขัดข้อง (แตะเพื่อตรวจสอบการตั้งค่า)'
                     : '⚪ ตั้งค่าเชื่อมต่อฐานข้อมูล Cloud'
                 }
-                className={`p-2 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 shadow-2xs ${
+                className={`p-2 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer ${
                   cloudStatus === 'connected'
                     ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30 hover:bg-emerald-100'
                     : cloudStatus === 'syncing'

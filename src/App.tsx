@@ -112,6 +112,7 @@ export function App() {
     return cfg.isConfigured ? 'syncing' : 'offline';
   });
   const isRemoteUpdatingRef = useRef(false);
+  const hasInitiallySyncedRef = useRef(false);
 
   // Live Fund Balances (เป้าหมายเงินออมไม่นำมาลดหรือเพิ่มกับยอดกองทุนใดๆ ทั้งสิ้น)
   const currentLongTermBalance = useMemo(() => {
@@ -224,6 +225,7 @@ export function App() {
         if (!isMounted) return;
 
         if (cloudData) {
+          hasInitiallySyncedRef.current = true;
           // Only update if it's the initial load or cloud has a newer timestamp
           if (!lastCloudUpdatedAtRef.current || (cloudData.updated_at && cloudData.updated_at !== lastCloudUpdatedAtRef.current)) {
             isRemoteUpdatingRef.current = true;
@@ -239,17 +241,15 @@ export function App() {
             setTimeout(() => {
               isRemoteUpdatingRef.current = false;
             }, 400);
+          } else {
+            setCloudStatus('connected');
           }
-        } else if (!isBackgroundPoll) {
-          // Table has no record yet -> initialize with local state
-          const nowIso = new Date().toISOString();
-          lastCloudUpdatedAtRef.current = nowIso;
-          pushCloudHouseholdData({
-            ...currentDataRef.current,
-            updated_at: nowIso,
-          }).then(ok => {
-            if (isMounted) setCloudStatus(ok ? 'connected' : 'error');
-          });
+        } else {
+          // If fetch returned null, do NOT push or overwrite cloud data!
+          // Maintain current state and report status
+          if (!hasInitiallySyncedRef.current) {
+            setCloudStatus('syncing');
+          }
         }
       } catch (err) {
         console.error('Cloud sync error:', err);
@@ -257,14 +257,15 @@ export function App() {
       }
     };
 
-    // Initial fetch on mount
+    // Initial fetch on mount immediately
     syncFromCloud(false);
 
     // Subscribe to Realtime postgres changes
-    const unsubscribe = subscribeToCloudChanges(
+    let unsubscribe = subscribeToCloudChanges(
       newData => {
         if (!isMounted) return;
         isRemoteUpdatingRef.current = true;
+        hasInitiallySyncedRef.current = true;
         lastCloudUpdatedAtRef.current = newData.updated_at;
         setSettings(newData.settings);
         setGoals(newData.goals);
@@ -281,35 +282,48 @@ export function App() {
       }
     );
 
-    // Mobile Phone Wake-up: when user unlocks screen or switches back to browser tab
+    // Mobile Phone Wake-up: when user unlocks screen, switches back to tab, or network reconnects
     const handleWakeUp = () => {
       if (document.visibilityState === 'visible') {
         syncFromCloud(true);
+        // Secondary attempt after 1.2s to handle mobile carrier Wi-Fi/Cellular handover
+        setTimeout(() => {
+          if (document.visibilityState === 'visible' && isMounted) {
+            syncFromCloud(true);
+          }
+        }, 1200);
       }
     };
 
     window.addEventListener('focus', handleWakeUp);
     document.addEventListener('visibilitychange', handleWakeUp);
+    window.addEventListener('pageshow', handleWakeUp);
+    window.addEventListener('online', handleWakeUp);
 
-    // Bulletproof Polling Fallback (every 4 seconds for active screen)
+    // Bulletproof Polling Fallback (every 5 seconds for active screen)
     // Ensures real-time sync even if mobile network or carrier drops WebSocket
     const pollInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncFromCloud(true);
       }
-    }, 4000);
+    }, 5000);
 
     return () => {
       isMounted = false;
       unsubscribe();
       window.removeEventListener('focus', handleWakeUp);
       document.removeEventListener('visibilitychange', handleWakeUp);
+      window.removeEventListener('pageshow', handleWakeUp);
+      window.removeEventListener('online', handleWakeUp);
       clearInterval(pollInterval);
     };
   }, []);
 
   // 2. Debounced push to Cloud on local mutations
   useEffect(() => {
+    // CRITICAL GUARD: Never push local state to Cloud until initial Cloud sync has succeeded!
+    // Prevents pushing stale/mock data from new devices or mobile cache onto Supabase.
+    if (!hasInitiallySyncedRef.current) return;
     if (isRemoteUpdatingRef.current) return;
     const config = getSupabaseConfig();
     if (!config.isConfigured) return;
@@ -326,7 +340,7 @@ export function App() {
         updated_at: nowIso,
       });
       setCloudStatus(ok ? 'connected' : 'error');
-    }, 500);
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [settings, goals, transactions, expenses]);
@@ -950,6 +964,7 @@ export function App() {
           setSettingsTab('cloud');
           setIsSettingsModalOpen(true);
         }}
+        onTriggerQuickSync={handlePullFromCloud}
         cloudStatus={cloudStatus}
         onToggleTheme={handleToggleTheme}
         onLockScreen={handleLockScreen}

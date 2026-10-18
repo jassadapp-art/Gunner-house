@@ -154,10 +154,17 @@ export const LockScreen: React.FC<LockScreenProps> = ({
 
         {/* Security & Default Hint Note */}
         <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-center">
-          <div className="flex items-center justify-center gap-1 text-[11px] text-emerald-800 dark:text-emerald-400 font-semibold">
-            <KeyRound className="w-3 h-3 text-emerald-600" />
-            <span>รหัสผ่านเริ่มต้น: <code className="bg-emerald-100 dark:bg-emerald-950 px-1.5 py-0.5 rounded font-mono font-bold">1234</code></span>
-          </div>
+          {correctPassword === '1234' ? (
+            <div className="flex items-center justify-center gap-1 text-[11px] text-emerald-800 dark:text-emerald-400 font-semibold">
+              <KeyRound className="w-3 h-3 text-emerald-600" />
+              <span>รหัสผ่านเริ่มต้น: <code className="bg-emerald-100 dark:bg-emerald-950 px-1.5 py-0.5 rounded font-mono font-bold">1234</code></span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-1 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+              <KeyRound className="w-3 h-3 text-emerald-600" />
+              <span>ระบบถูกปกป้องด้วยรหัสผ่าน PIN</span>
+            </div>
+          )}
           <p className="text-[10px] text-slate-400 mt-1">
             สามารถแก้ไขหรือเปิด/ปิดรหัสผ่านได้ในเมนูการตั้งค่า ⚙️
           </p>
