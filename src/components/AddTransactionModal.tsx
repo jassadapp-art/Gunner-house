@@ -65,12 +65,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const memberB = settings.members.person_b;
 
   const [type, setType] = useState<TransactionType>('deposit');
-  const [targetFund, setTargetFund] = useState<HouseholdFundType>('operating');
+  const [targetFund, setTargetFund] = useState<HouseholdFundType>('long_term');
   const [contributorId, setContributorId] = useState<ContributorId>('joint');
   const [date, setDate] = useState(getTodayDateString());
   const [amount, setAmount] = useState<string>('');
   const [goalId, setGoalId] = useState<string>('');
-  const [category, setCategory] = useState<string>('ทั่วไป');
+  const [category, setCategory] = useState<string>('เงินออม');
   const [withdrawalReason, setWithdrawalReason] = useState<string>('');
   const [note, setNote] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -78,30 +78,30 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   useEffect(() => {
     if (editingTransaction) {
       setType(editingTransaction.type || 'deposit');
-      setTargetFund(editingTransaction.targetFund || 'operating');
+      setTargetFund(editingTransaction.targetFund || 'long_term');
       setContributorId(editingTransaction.contributorId);
       setDate(editingTransaction.date);
       setAmount(editingTransaction.amount.toString());
-      setGoalId(editingTransaction.goalId || '');
-      setCategory(editingTransaction.category || 'ทั่วไป');
+      setGoalId(editingTransaction.type === 'goal_allocation' ? (editingTransaction.goalId || '') : '');
+      setCategory(editingTransaction.category || 'เงินออม');
       setWithdrawalReason(editingTransaction.withdrawalReason || '');
       setNote(editingTransaction.note || '');
     } else {
       const defaultType = initialType || (initialGoalId ? 'goal_allocation' : 'deposit');
       setType(defaultType);
-      setTargetFund(initialFund || 'operating');
+      setTargetFund(initialFund || (defaultType === 'deposit' ? 'long_term' : 'operating'));
       setContributorId(initialContributor || 'joint');
       setDate(getTodayDateString());
       setAmount('');
       const chosenGoalId = initialGoalId || (goals.length > 0 ? goals[0].id : '');
-      setGoalId(chosenGoalId);
+      setGoalId(defaultType === 'goal_allocation' ? chosenGoalId : '');
       if (initialCategory) {
         setCategory(initialCategory);
-      } else if (chosenGoalId) {
+      } else if (defaultType === 'goal_allocation' && chosenGoalId) {
         const found = goals.find(g => g.id === chosenGoalId);
         if (found) setCategory(found.category);
       } else {
-        setCategory(goals.length > 0 ? goals[0].category : 'ทั่วไป');
+        setCategory(defaultType === 'deposit' ? 'เงินออม' : 'ทั่วไป');
       }
       setWithdrawalReason('');
       setNote('');
@@ -149,8 +149,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       type,
       targetFund,
       withdrawalReason: type === 'withdrawal' ? (withdrawalReason.trim() || 'ถอนเงิน') : undefined,
-      goalId: (type === 'goal_allocation' || type === 'deposit') ? (goalId || undefined) : undefined,
-      category: type === 'withdrawal' ? 'ถอนเงิน' : (type === 'goal_allocation' && selectedGoalObj ? selectedGoalObj.category : (category || 'ทั่วไป')),
+      goalId: type === 'goal_allocation' ? (goalId || undefined) : undefined,
+      category: type === 'withdrawal' ? 'ถอนเงิน' : (type === 'goal_allocation' && selectedGoalObj ? selectedGoalObj.category : (category || 'เงินออม')),
       note: finalNote || undefined,
     });
     onClose();
@@ -273,9 +273,38 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           )}
 
-
-
-
+          {/* 3. Target Fund Selector (When depositing or withdrawing) */}
+          {type !== 'goal_allocation' && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+                เลือกกองทุน *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetFund('long_term')}
+                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                    targetFund === 'long_term'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                  }`}
+                >
+                  <span>🏦 บัญชีเงินออมสะสม</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetFund('operating')}
+                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                    targetFund === 'operating'
+                      ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-500 text-teal-700 dark:text-teal-300 ring-2 ring-teal-500/20 shadow-xs'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                  }`}
+                >
+                  <span>🔄 กองทุนค่าใช้จ่ายหมุนเวียน</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 4. Contributor Selector */}
           <div>

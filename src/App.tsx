@@ -44,6 +44,19 @@ import { SettingsModal } from './components/SettingsModal';
 import { LockScreen } from './components/LockScreen';
 import { CheckCircle, Heart } from 'lucide-react';
 
+const sanitizeTransactionsList = (txs: Transaction[]): Transaction[] => {
+  return (txs || []).map(t => {
+    if (t.type !== 'goal_allocation' && !t.note?.includes('หยอดเงินเข้าเป้าหมาย') && t.goalId) {
+      const { goalId, ...rest } = t;
+      return {
+        ...rest,
+        targetFund: 'long_term' as const,
+      };
+    }
+    return t;
+  });
+};
+
 export function App() {
   // State from LocalStorage
   const [settings, setSettings] = useState<HouseholdSettings>(loadStoredSettings);
@@ -95,8 +108,8 @@ export function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [initialContributor, setInitialContributor] = useState<ContributorId>('joint');
   const [initialGoalId, setInitialGoalId] = useState<string | undefined>(undefined);
-  const [initialFund, setInitialFund] = useState<HouseholdFundType>('operating');
-  const [initialType, setInitialType] = useState<TransactionType>('goal_allocation');
+  const [initialFund, setInitialFund] = useState<HouseholdFundType>('long_term');
+  const [initialType, setInitialType] = useState<TransactionType>('deposit');
   const [initialCategory, setInitialCategory] = useState<string | undefined>(undefined);
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -232,7 +245,7 @@ export function App() {
             lastCloudUpdatedAtRef.current = cloudData.updated_at;
             setSettings(cloudData.settings);
             setGoals(cloudData.goals);
-            setTransactions(cloudData.transactions);
+            setTransactions(sanitizeTransactionsList(cloudData.transactions));
             if (cloudData.expenses) setExpenses(cloudData.expenses);
             setCloudStatus('connected');
             if (isBackgroundPoll) {
@@ -269,7 +282,7 @@ export function App() {
         lastCloudUpdatedAtRef.current = newData.updated_at;
         setSettings(newData.settings);
         setGoals(newData.goals);
-        setTransactions(newData.transactions);
+        setTransactions(sanitizeTransactionsList(newData.transactions));
         if (newData.expenses) setExpenses(newData.expenses);
         setCloudStatus('connected');
         showToast('🔄 ข้อมูลอัปเดตสดจากอีกอุปกรณ์แล้ว');
@@ -385,7 +398,7 @@ export function App() {
         lastCloudUpdatedAtRef.current = cloudData.updated_at;
         setSettings(cloudData.settings);
         setGoals(cloudData.goals);
-        setTransactions(cloudData.transactions);
+        setTransactions(sanitizeTransactionsList(cloudData.transactions));
         if (cloudData.expenses) setExpenses(cloudData.expenses);
         setCloudStatus('connected');
         showToast('✅ ดึงข้อมูลล่าสุดจาก Cloud ลงเครื่องนี้เรียบร้อยแล้ว');
@@ -479,9 +492,9 @@ export function App() {
       };
       setTransactions(prev => [newTx, ...prev]);
 
-      // If linked to a goal, increment goal.currentAmount
-      if (cleanTxData.goalId) {
-        const delta = cleanTxData.type === 'withdrawal' ? -cleanTxData.amount : cleanTxData.amount;
+      // If linked to a goal and it's a goal allocation, increment goal.currentAmount
+      if (cleanTxData.type === 'goal_allocation' && cleanTxData.goalId) {
+        const delta = cleanTxData.amount;
         setGoals(prev =>
           prev.map(g => {
             if (g.id === cleanTxData.goalId) {
@@ -492,12 +505,12 @@ export function App() {
         );
       }
 
-      // Check if goal was completed by this transaction (if deposit)
-      if (!isWithdrawal && txData.goalId) {
+      // Check if goal was completed by this transaction (if goal allocation)
+      if (txData.type === 'goal_allocation' && txData.goalId) {
         const goal = goals.find(g => g.id === txData.goalId);
         if (goal) {
           const currentTotal = transactions
-            .filter(t => t.goalId === goal.id && t.type !== 'withdrawal')
+            .filter(t => t.goalId === goal.id && t.type === 'goal_allocation')
             .reduce((acc, t) => acc + t.amount, 0) + txData.amount;
           if (currentTotal >= goal.targetAmount) {
             triggerCelebration();
@@ -528,7 +541,6 @@ export function App() {
     targetFund: HouseholdFundType = 'operating'
   ) => {
     const memberName = getContributorDisplayName(contributorId);
-    const defaultGoal = goals.length > 0 ? goals[0] : undefined;
     const fundName = targetFund === 'operating' ? 'กองหมุนเวียน' : 'กองระยะยาว';
 
     const newTx: Transaction = {
@@ -538,8 +550,8 @@ export function App() {
       type: 'deposit',
       targetFund,
       contributorId,
-      goalId: targetFund === 'long_term' ? defaultGoal?.id : undefined,
-      category: targetFund === 'long_term' ? (defaultGoal?.category || 'ทั่วไป') : 'หมุนเวียนรายเดือน',
+      goalId: undefined,
+      category: targetFund === 'long_term' ? 'เงินออม' : 'หมุนเวียนรายเดือน',
       note: `${note} (${memberName})`,
       createdAt: new Date().toISOString(),
     };
@@ -981,7 +993,8 @@ export function App() {
             setEditingTransaction(null);
             setInitialContributor('joint');
             setInitialGoalId(undefined);
-            setInitialFund('operating');
+            setInitialFund('long_term');
+            setInitialType('deposit');
             setInitialCategory(undefined);
             setIsAddModalOpen(true);
           }}
@@ -1045,7 +1058,7 @@ export function App() {
                 setInitialType(type || 'deposit');
                 setInitialContributor(contributorId || 'joint');
                 setInitialGoalId(undefined);
-                setInitialFund(fund || 'operating');
+                setInitialFund(fund || 'long_term');
                 setInitialCategory(undefined);
                 setIsAddModalOpen(true);
               }}

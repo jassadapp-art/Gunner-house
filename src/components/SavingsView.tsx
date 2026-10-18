@@ -474,7 +474,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
             {/* Quick Actions */}
             <button
-              onClick={() => onOpenCustomAdd(undefined, 'operating', 'deposit')}
+              onClick={() => onOpenCustomAdd(undefined, 'long_term', 'deposit')}
               className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
@@ -482,7 +482,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             </button>
 
             <button
-              onClick={() => onOpenCustomAdd(undefined, 'operating', 'withdrawal')}
+              onClick={() => onOpenCustomAdd(undefined, 'long_term', 'withdrawal')}
               className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
             >
               <TrendingDown className="w-3.5 h-3.5" />
@@ -1029,7 +1029,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                       {formatCurrency(totalEndingBalance)}
                     </td>
                     <td className="py-3 px-6 text-slate-500 text-[11px]">
-                      ยอดเงินออมสะสมสุทธิสิ้นสุด (157,359.89 ฿)
+                      ยอดเงินออมสะสมสุทธิสิ้นสุด ({formatCurrency(totalEndingBalance)})
                     </td>
                   </tr>
                 </tfoot>

@@ -123,11 +123,14 @@ export const loadStoredTransactions = (): Transaction[] => {
             id = `tx-${t.date || 'item'}-${idx + 1}-${Math.random().toString(36).substring(2, 6)}`;
           }
           seenIds.add(id);
-          if (id.startsWith('tx-passbook-')) {
+          // Guarantee savings isolation: deposits and withdrawals must never have goalId attached
+          if (t.type !== 'goal_allocation' && !t.note?.includes('หยอดเงินเข้าเป้าหมาย')) {
             const { goalId, ...rest } = t;
+            const isSavingsDeposit = t.type === 'deposit' && (t.targetFund === 'long_term' || goalId !== undefined || t.category === 'เงินออม');
             return {
               ...rest,
               id,
+              targetFund: isSavingsDeposit ? 'long_term' : (t.targetFund || 'long_term'),
             };
           }
           return {
