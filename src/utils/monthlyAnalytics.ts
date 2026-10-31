@@ -1,5 +1,5 @@
 import type { HouseholdSettings, MonthlyExpense, Transaction } from '../types';
-import { getMonthLabel } from './formatters';
+import { getMonthLabel, getCurrentYearMonth } from './formatters';
 
 export interface AnalyticsMetricPoint {
   key: string;              // 'YYYY-MM' or 'YYYY-Q#' or 'YYYY'
@@ -84,8 +84,16 @@ export function getExpenseAmountForMonth(exp: MonthlyExpense, monthKey: string):
   if (exp.monthlyBills && exp.monthlyBills[monthKey] !== undefined) {
     return exp.monthlyBills[monthKey];
   }
+  const currentKey = getCurrentYearMonth();
+  if (monthKey === currentKey) {
+    if (exp.amountType === 'variable') {
+      return exp.currentMonthAmount !== undefined ? exp.currentMonthAmount : (exp.estimatedAmount ?? exp.amount);
+    }
+    return exp.amount;
+  }
+  // For other months without recorded bills
   if (exp.amountType === 'variable') {
-    return exp.currentMonthAmount !== undefined ? exp.currentMonthAmount : (exp.estimatedAmount ?? exp.amount);
+    return 0;
   }
   return exp.amount;
 }
@@ -116,8 +124,7 @@ export function getAllAvailableMonthKeys(
       set.add(t.date.slice(0, 7));
     }
   });
-  const now = new Date();
-  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentKey = getCurrentYearMonth();
   set.add(currentKey);
 
   return Array.from(set).sort();

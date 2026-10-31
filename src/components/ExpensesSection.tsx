@@ -119,7 +119,8 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
   const [trendViewMode, setTrendViewMode] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('2026-09');
+  const currentMonthKey = getCurrentYearMonth();
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => currentMonthKey);
 
   // Quick Bill Entry Modal state for variable expenses
   const [billModalExpense, setBillModalExpense] = useState<MonthlyExpense | null>(null);
@@ -303,22 +304,27 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
 
   // Helper to get expense amount for selected month
   const getExpenseAmountForMonth = (e: MonthlyExpense, mKey: string): number => {
-    if (mKey === '2026-09') {
+    if (mKey === currentMonthKey) {
       return getEffectiveExpenseAmount(e);
-    }
-    if (e.amountType === 'fixed') {
-      return e.amount;
     }
     if (e.monthlyBills && e.monthlyBills[mKey] !== undefined) {
       return e.monthlyBills[mKey];
+    }
+    if (e.amountType === 'fixed') {
+      return e.amount;
     }
     return 0;
   };
 
   const selectedMonthInfo = useMemo(() => {
     const found = HISTORICAL_MONTHS.find(m => m.key === selectedMonthKey);
-    return found || HISTORICAL_MONTHS[HISTORICAL_MONTHS.length - 1];
-  }, [selectedMonthKey]);
+    return found || {
+      key: selectedMonthKey,
+      label: getMonthLabel(selectedMonthKey),
+      expense: totalMonthlyExpense,
+      income: monthlyHouseholdIncome,
+    };
+  }, [selectedMonthKey, totalMonthlyExpense, monthlyHouseholdIncome]);
 
   const selectedMonthExpenses = useMemo(() => {
     return expenses
@@ -327,26 +333,43 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
         resolvedAmount: getExpenseAmountForMonth(e, selectedMonthKey),
       }))
       .filter(e => e.resolvedAmount > 0);
-  }, [expenses, selectedMonthKey]);
+  }, [expenses, selectedMonthKey, currentMonthKey]);
 
   const selectedMonthTotalExpense = useMemo(() => {
-    if (selectedMonthKey === '2026-09') {
+    if (selectedMonthKey === currentMonthKey) {
       return totalMonthlyExpense;
     }
     return selectedMonthExpenses.reduce((acc, e) => acc + e.resolvedAmount, 0);
-  }, [selectedMonthKey, selectedMonthExpenses, totalMonthlyExpense]);
+  }, [selectedMonthKey, currentMonthKey, selectedMonthExpenses, totalMonthlyExpense]);
 
   const selectedMonthIncome = useMemo(() => {
-    if (selectedMonthKey === '2026-09') {
+    if (selectedMonthKey === currentMonthKey) {
       return monthlyHouseholdIncome;
     }
-    return selectedMonthInfo.income;
-  }, [selectedMonthKey, selectedMonthInfo, monthlyHouseholdIncome]);
+    return selectedMonthInfo.income || monthlyHouseholdIncome;
+  }, [selectedMonthKey, currentMonthKey, selectedMonthInfo, monthlyHouseholdIncome]);
 
   const selectedMonthSurplus = selectedMonthIncome - selectedMonthTotalExpense;
   const selectedMonthExpenseRatio = selectedMonthIncome > 0
     ? (selectedMonthTotalExpense / selectedMonthIncome) * 100
     : 0;
+
+  const availableMonths = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; expense: number; income: number }>();
+    HISTORICAL_MONTHS.forEach(m => {
+      map.set(m.key, { ...m, label: m.label.replace(' (ปัจจุบัน)', '') });
+    });
+    if (!map.has('2026-10')) {
+      map.set('2026-10', { key: '2026-10', label: 'ต.ค. 69', expense: 35220.82, income: 63100.90 });
+    }
+    map.set(currentMonthKey, {
+      key: currentMonthKey,
+      label: `${getMonthLabel(currentMonthKey)} (ปัจจุบัน)`,
+      expense: totalMonthlyExpense,
+      income: monthlyHouseholdIncome,
+    });
+    return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [currentMonthKey, totalMonthlyExpense, monthlyHouseholdIncome]);
 
   // Chart Data: Either By Category OR By Item (Based on selected month!)
   const chartData = useMemo(() => {
@@ -615,21 +638,21 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
                 onChange={e => setSelectedMonthKey(e.target.value)}
                 className="text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded-xl font-semibold shadow-2xs focus:ring-2 focus:ring-emerald-500 outline-none"
               >
-                {[...HISTORICAL_MONTHS].reverse().map(m => (
+                {[...availableMonths].reverse().map(m => (
                   <option key={m.key} value={m.key}>
-                    {m.label} • {formatCurrency(m.key === '2026-09' ? totalMonthlyExpense : m.expense)}
+                    {m.label} • {formatCurrency(m.key === currentMonthKey ? totalMonthlyExpense : m.expense)}
                   </option>
                 ))}
               </select>
 
-              {selectedMonthKey !== '2026-09' && (
+              {selectedMonthKey !== currentMonthKey && (
                 <button
                   type="button"
-                  onClick={() => setSelectedMonthKey('2026-09')}
+                  onClick={() => setSelectedMonthKey(currentMonthKey)}
                   className="text-xs px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition shadow-xs flex items-center gap-1"
-                  title="กลับสู่เดือนปัจจุบัน"
+                  title="กลับสู่รอบบิลปัจจุบัน"
                 >
-                  <span>🔄 เดือนปัจจุบัน</span>
+                  <span>🔄 รอบบิลปัจจุบัน</span>
                 </button>
               )}
             </div>
@@ -637,7 +660,7 @@ export const ExpensesSection: React.FC<ExpensesSectionProps> = ({
 
           {/* Quick Month Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-            {[...HISTORICAL_MONTHS].reverse().map(m => {
+            {[...availableMonths].reverse().map(m => {
               const isSelected = selectedMonthKey === m.key;
               return (
                 <button

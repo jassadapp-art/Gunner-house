@@ -1,44 +1,89 @@
 import type { MonthlyExpense } from '../types';
-import { getCurrentYearMonth } from './formatters';
+import {
+  getCurrentYearMonth,
+  getPreviousBillingMonth,
+  BILLING_CYCLE_CUTOFF_DAY,
+} from './formatters';
 
 /**
- * Checks and automatically resets recurring monthly expenses when their due date arrives in a new month cycle.
- *
- * Requirements:
- * - "ถ้าถึงวันกำหนดชำระแล้ว สถานะจะถูกเคลียร์เป็นเดือนใหม่ทันที"
- * - If current date reaches or passes the expense's dueDay (e.g. 1st, 5th, 17th, 20th),
- *   and it has not been marked as paid for the current month cycle (lastPaidMonth !== currentMonthKey),
- *   its status is automatically reset to unpaid (isPaidThisMonth: false).
- * - For variable expenses, if no bill has been entered yet for the current month,
- *   currentMonthAmount is cleared so the user can enter the new billing statement.
+ * Calculates the exact Due Date for an expense in a given billing cycle.
+ * Billing cycle 'YYYY-MM' runs from the 25th of month (M-1) to the 24th of month M.
+ * - If dueDay >= 25: falls on dueDay of month (M-1)
+ * - If dueDay < 25: falls on dueDay of month M
+ */
+export function getExpenseDueDateForCycle(
+  cycleKey: string,
+  dueDay: number = 1
+): Date {
+  const [yearStr, monthStr] = cycleKey.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10); // 1-12
+
+  if (dueDay >= BILLING_CYCLE_CUTOFF_DAY) {
+    return new Date(year, month - 2, dueDay);
+  } else {
+    return new Date(year, month - 1, dueDay);
+  }
+}
+
+/**
+ * Checks and automatically resets recurring monthly expenses on the 25th of every month:
+ * 1. "อยากให้รอบบิลบันทึก": Snapshots and locks previous cycle bills into monthlyBills[prevCycle].
+ * 2. "และเป็นเดือนถัดไป ในทุกวันที่ 25 ของเดือน": Rollovers to the new billing cycle:
+ *    - isPaidThisMonth resets to false for the new cycle
+ *    - variable currentMonthAmount resets to undefined (blank/ready for entering new bill)
  */
 export function checkAndAutoResetMonthlyExpenses(
   expenses: MonthlyExpense[],
   referenceDate: Date = new Date()
 ): { updatedExpenses: MonthlyExpense[]; resetCount: number; hasChanges: boolean } {
-  const currentMonthKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, '0')}`;
-  const currentDay = referenceDate.getDate();
+  const activeCycle = getCurrentYearMonth(referenceDate);
+  const prevCycle = getPreviousBillingMonth(activeCycle);
 
   let resetCount = 0;
   let hasChanges = false;
 
   const updatedExpenses = expenses.map(exp => {
-    const dueDay = exp.dueDay || 1;
-    const isDue = currentDay >= dueDay;
-    const isPaidForThisCycle = exp.lastPaidMonth === currentMonthKey;
+    let updatedMonthlyBills = exp.monthlyBills ? { ...exp.monthlyBills } : {};
+    let billsChanged = false;
 
-    // If it has reached due date in current cycle, but was marked paid in a PREVIOUS month or never
-    if (isDue && !isPaidForThisCycle && exp.isPaidThisMonth) {
+    // 1. Snapshot previous cycle bills so history is permanently locked
+    if (updatedMonthlyBills[prevCycle] === undefined) {
+      if (exp.amountType === 'fixed') {
+        updatedMonthlyBills[prevCycle] = exp.amount;
+        billsChanged = true;
+      } else if (exp.amountType === 'variable') {
+        const valToSnapshot = exp.currentMonthAmount !== undefined ? exp.currentMonthAmount : exp.amount;
+        if (valToSnapshot > 0) {
+          updatedMonthlyBills[prevCycle] = valToSnapshot;
+          billsChanged = true;
+        }
+      }
+    }
+
+    // 2. Rollover to new active billing cycle if not yet paid for this cycle
+    const isPaidInActiveCycle = exp.lastPaidMonth === activeCycle;
+
+    if (!isPaidInActiveCycle && (exp.isPaidThisMonth || exp.currentMonthAmount !== undefined)) {
       resetCount++;
       hasChanges = true;
       return {
         ...exp,
+        monthlyBills: billsChanged ? updatedMonthlyBills : (exp.monthlyBills || {}),
         isPaidThisMonth: false,
-        // Reset variable amount for the new cycle if it was carried over from previous months
+        // Reset variable amount for the new billing cycle if no bill has been entered yet for activeCycle
         currentMonthAmount:
-          exp.amountType === 'variable' && (!exp.monthlyBills || !exp.monthlyBills[currentMonthKey])
+          exp.amountType === 'variable' && (!updatedMonthlyBills[activeCycle])
             ? undefined
             : exp.currentMonthAmount,
+      };
+    }
+
+    if (billsChanged) {
+      hasChanges = true;
+      return {
+        ...exp,
+        monthlyBills: updatedMonthlyBills,
       };
     }
 
@@ -72,12 +117,17 @@ export function getExpenseDueStatus(
   exp: MonthlyExpense,
   referenceDate: Date = new Date()
 ): { isDue: boolean; daysRemaining: number; isPaidThisCycle: boolean } {
-  const currentMonthKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, '0')}`;
-  const currentDay = referenceDate.getDate();
+  const currentMonthKey = getCurrentYearMonth(referenceDate);
   const dueDay = exp.dueDay || 1;
+  const dueDate = getExpenseDueDateForCycle(currentMonthKey, dueDay);
 
-  const isDue = currentDay >= dueDay;
-  const daysRemaining = Math.max(0, dueDay - currentDay);
+  // Compare day with 00:00:00 precision
+  const todayZero = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const dueZero = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+
+  const isDue = todayZero.getTime() >= dueZero.getTime();
+  const diffMs = dueZero.getTime() - todayZero.getTime();
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
   const isPaidThisCycle = exp.isPaidThisMonth === true && exp.lastPaidMonth === currentMonthKey;
 
   return { isDue, daysRemaining, isPaidThisCycle };

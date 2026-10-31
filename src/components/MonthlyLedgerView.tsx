@@ -6,6 +6,7 @@ import {
   formatCurrencySpreadsheet,
   getCurrentYearMonth,
   getMonthLabel,
+  getBillingCycleDateRangeLabel,
 } from '../utils/formatters';
 import { getExpenseAmountForMonth, getExpenseEstimatedAmount } from '../utils/monthlyAnalytics';
 import {
@@ -1108,9 +1109,14 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                             <div className="flex flex-col items-end">
                               <span>{formatSpreadsheetMonth(mKey)}</span>
                               {isCurrent && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold mt-0.5 shadow-2xs">
-                                  ปัจจุบัน
-                                </span>
+                                <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-600 text-white font-bold shadow-2xs whitespace-nowrap">
+                                    ปัจจุบัน
+                                  </span>
+                                  <span className="text-[8px] text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
+                                    {getBillingCycleDateRangeLabel(mKey)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </th>
@@ -1641,9 +1647,14 @@ export const MonthlyLedgerView: React.FC<MonthlyLedgerViewProps> = ({
                                 </button>
                               </div>
                               {isCurrent && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-600 text-white font-bold mt-0.5 shadow-2xs">
-                                  ปัจจุบัน
-                                </span>
+                                <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-600 text-white font-bold shadow-2xs whitespace-nowrap">
+                                    ปัจจุบัน
+                                  </span>
+                                  <span className="text-[8px] text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
+                                    {getBillingCycleDateRangeLabel(mKey)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </th>

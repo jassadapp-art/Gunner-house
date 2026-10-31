@@ -109,11 +109,57 @@ export const formatPassbookDate = (dateStr: string): string => {
   }
 };
 
-export const getCurrentYearMonth = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
+export const BILLING_CYCLE_CUTOFF_DAY = 25;
+
+/**
+ * Returns billing month key 'YYYY-MM' based on the 25th cutoff rule:
+ * - Days 1 to 24 of Month M belong to cycle M.
+ * - Days 25 onwards of Month M advance to cycle M+1.
+ */
+export const getCurrentBillingMonth = (
+  refDate: Date = new Date(),
+  cutoffDay: number = BILLING_CYCLE_CUTOFF_DAY
+): string => {
+  const d = new Date(refDate);
+  let year = d.getFullYear();
+  let month = d.getMonth() + 1; // 1-12
+
+  if (d.getDate() >= cutoffDay) {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, '0')}`;
+};
+
+export const getCurrentYearMonth = (refDate: Date = new Date()): string => {
+  return getCurrentBillingMonth(refDate, BILLING_CYCLE_CUTOFF_DAY);
+};
+
+export const getPreviousBillingMonth = (cycleKey: string): string => {
+  const [yearStr, monthStr] = cycleKey.split('-');
+  let year = parseInt(yearStr, 10);
+  let month = parseInt(monthStr, 10);
+  month -= 1;
+  if (month < 1) {
+    month = 12;
+    year -= 1;
+  }
+  return `${year}-${String(month).padStart(2, '0')}`;
+};
+
+export const getBillingCycleDateRangeLabel = (cycleKey: string): string => {
+  const [yearStr, monthStr] = cycleKey.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const prevDate = new Date(year, month - 2, 25);
+  const currDate = new Date(year, month - 1, 24);
+  const startThai = `${prevDate.getDate()} ${THAI_MONTHS_SHORT[prevDate.getMonth()]}`;
+  const endThai = `${currDate.getDate()} ${THAI_MONTHS_SHORT[currDate.getMonth()]}`;
+  return `${startThai} - ${endThai}`;
 };
 
 export const getTodayDateString = (): string => {

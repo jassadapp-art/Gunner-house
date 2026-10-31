@@ -245,8 +245,10 @@ export function App() {
             lastCloudUpdatedAtRef.current = cloudData.updated_at;
             setSettings(cloudData.settings);
             setGoals(cloudData.goals);
-            setTransactions(sanitizeTransactionsList(cloudData.transactions));
-            if (cloudData.expenses) setExpenses(cloudData.expenses);
+            if (cloudData.expenses) {
+              const { updatedExpenses } = checkAndAutoResetMonthlyExpenses(cloudData.expenses);
+              setExpenses(updatedExpenses);
+            }
             setCloudStatus('connected');
             if (isBackgroundPoll) {
               showToast('🔄 ข้อมูลอัปเดตตรงกับอีกอุปกรณ์แล้ว');
@@ -282,8 +284,10 @@ export function App() {
         lastCloudUpdatedAtRef.current = newData.updated_at;
         setSettings(newData.settings);
         setGoals(newData.goals);
-        setTransactions(sanitizeTransactionsList(newData.transactions));
-        if (newData.expenses) setExpenses(newData.expenses);
+        if (newData.expenses) {
+          const { updatedExpenses } = checkAndAutoResetMonthlyExpenses(newData.expenses);
+          setExpenses(updatedExpenses);
+        }
         setCloudStatus('connected');
         showToast('🔄 ข้อมูลอัปเดตสดจากอีกอุปกรณ์แล้ว');
         setTimeout(() => {
@@ -399,7 +403,10 @@ export function App() {
         setSettings(cloudData.settings);
         setGoals(cloudData.goals);
         setTransactions(sanitizeTransactionsList(cloudData.transactions));
-        if (cloudData.expenses) setExpenses(cloudData.expenses);
+        if (cloudData.expenses) {
+          const { updatedExpenses } = checkAndAutoResetMonthlyExpenses(cloudData.expenses);
+          setExpenses(updatedExpenses);
+        }
         setCloudStatus('connected');
         showToast('✅ ดึงข้อมูลล่าสุดจาก Cloud ลงเครื่องนี้เรียบร้อยแล้ว');
         setTimeout(() => {
@@ -678,7 +685,7 @@ export function App() {
       setExpenses(prev => {
         const { updatedExpenses, resetCount, hasChanges } = checkAndAutoResetMonthlyExpenses(prev);
         if (hasChanges) {
-          showToast(`📅 ถึงวันกำหนดชำระแล้ว ระบบรีเซ็ตสถานะเป็นรอบเดือนใหม่ ${resetCount} รายการ`);
+          showToast(`📅 ถึงวันที่ 25 ตัดรอบบิลใหม่ ระบบบันทึกยอดเดิมและปรับเป็นรอบใหม่ ${resetCount} รายการ`);
           return updatedExpenses;
         }
         return prev;
